@@ -81,7 +81,7 @@ const DEFAULT_MENTORS = [
     tags: ['Marketing', 'Brand', 'Design'],
     gradient: ['#16a34a', '#0ea5e9'],
     companies: ['Nothing Before Coffee', 'Branding & Design'],
-    photo: 'https://media.licdn.com/dms/image/v2/D5603AQFaO_o78_u5vg/profile-displayphoto-crop_800_800/B56Z18O78dGwAI-/0/1775905829149?e=1783555200&v=beta&t=tJHpSC59VXek-NH9I8KdOh8hFhY_bWU69jakSLuTkG0',
+    photo: 'akshayKedia.png',
     quote: 'A great product whispers. A great brand makes people listen.',
     bio: [
       'I’ve been an entrepreneur for 14 years, mostly living at the intersection of branding, design and advertising. Building brands is the thing I can’t not do.',
@@ -217,7 +217,7 @@ const DEFAULT_MENTORS = [
     tags: ['Fundraising', 'Finance', 'Pitch'],
     gradient: ['#f97316', '#6366f1'],
     companies: ['Brevitty Incubation Hub', 'Neos Angels', 'Headstart'],
-    photo:"https://media.licdn.com/dms/image/v2/D5603AQHm0-UZbwHpow/profile-displayphoto-crop_800_800/B56Z3khY0LJwAI-/0/1777655455698?e=1783555200&v=beta&t=drTUTztsGJHBAcjPWDxDhNJrEGLXMXhsq2tonRHl7jo",
+    photo:"akshayKedia.png",
     quote: 'A great deck is just clear thinking that happens to be on slides.',
     bio: [
       'I’m an international finance major — B.Com Honours and ACCA — and I run the Brevitty Incubation Hub, where I spend my days in the trenches with early founders.',

@@ -17,7 +17,7 @@ export const MENTORS = [
     company: 'Risaa IVF',
     bio: " Founder & CEO of Risaa IVF, Recognized as part of Forbes 30 U 30 Asia, BW 40 U 40 Awards,invested in over 30 startups across sectors such as healthtech, edtech, consumer brands, and social impact, supporting founders with both capital and strategic guidance to scale impactful solutions.",
     gradient: ['#6366f1', '#0ea5e9'],
-    photo: "https://media.licdn.com/dms/image/v2/D5603AQEo2d4wGrThmQ/profile-displayphoto-crop_800_800/B56Z4BI2f3KUAI-/0/1778135561952?e=1783555200&v=beta&t=Ha3U54crSBSueuvR6v5IZ80q-So2fdT6SnDTbslkfsQ",
+    photo: "sarthaakBhakshi.png",
   },
   {
     name: 'Akshay Kedia',
@@ -26,7 +26,7 @@ export const MENTORS = [
     company: '- Nothing Before coffee',
     bio: 'Founder & CMO Nothing Before coffee, Entrepreneur for 14 years, Specialist in Branding, Design and Advertising, Serial Investor',
     gradient: ['#16a34a', '#0ea5e9'],
-    photo: "https://media.licdn.com/dms/image/v2/D5603AQFaO_o78_u5vg/profile-displayphoto-crop_800_800/B56Z18O78dGwAI-/0/1775905829149?e=1783555200&v=beta&t=tJHpSC59VXek-NH9I8KdOh8hFhY_bWU69jakSLuTkG0",
+    photo: "akshayKedia.png",
   },
   {
     name: 'Mr. Tushar Saini',
@@ -44,7 +44,7 @@ export const MENTORS = [
     company: 'Startup O',
     bio: "Deep-tech venture creation, Ecosystem design (bridging academia, capital, and industry), Commercialisation strategy (turning research into revenue), Buisness Strategist - Billion Bricks",
     gradient: ['#9333ea', '#6366f1'],
-    photo: "https://media.licdn.com/dms/image/v2/D5603AQFRypUkTIvfrQ/profile-displayphoto-crop_800_800/B56Z3eyaXKKUAI-/0/1777559251413?e=1783555200&v=beta&t=WhoUnz_jvOc2gOL-InKoqiosoSVs8O6SFBtIIOsjslM",
+    photo: "anujJain.png",
   },
 ]
 
