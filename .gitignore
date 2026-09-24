@@ -10,6 +10,19 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Local student roster (real emails/passwords) — NEVER commit
+api/_lib/roster.local.json
+api/_lib/roster.local.json.tmp
+
+# Google service-account key files — NEVER commit (live credentials; auth
+# uses GOOGLE_SERVICE_ACCOUNT_EMAIL / GOOGLE_PRIVATE_KEY in .env.local instead)
+sj-roster-*.json
+*-service-account*.json
+service-account*.json
+credentials.json
+*-key.json
+key.json
+
 # Vercel
 .vercel
 

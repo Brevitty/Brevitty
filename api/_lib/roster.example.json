@@ -1,0 +1,10 @@
+[
+  { "email": "student.one@example.com", "password": "dummy-password-1" },
+  { "email": "Student.Two@example.com", "password": "dummy-password-2" },
+  { "email": "startup.only@example.com", "password": "dummy-startup-1", "name": "Sample Founder", "memberships": "startup:approved" },
+  { "email": "multi@example.com", "password": "dummy-multi-01", "name": "Sample Multi", "memberships": "startup:approved,vac:approved" },
+  { "email": "pending@example.com", "password": "dummy-pending1", "name": "Sample Pending", "memberships": "vac:pending" },
+  { "email": "rejected@example.com", "password": "dummy-reject-1", "name": "Sample Rejected", "memberships": "consulting:rejected" },
+  { "email": "none@example.com", "password": "dummy-none-001", "name": "Sample None", "memberships": "none" },
+  { "email": "admin.user@example.com", "password": "dummy-admin-01", "name": "Sample Admin", "memberships": "admin:approved,startup:approved" }
+]
