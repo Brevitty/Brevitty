@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import { ease } from './motionVariants.js'
+import BackToWorkspace from '../../hub/BackToWorkspace.jsx'
 import { ChevronRightIcon, GearIcon, SignOutIcon, SunIcon, MoonIcon } from './icons.jsx'
 
 function initialsOf(name) {
@@ -40,7 +42,7 @@ function ThemeIcon({ isDark }) {
   )
 }
 
-function CohortMiniCard({ student, milestones }) {
+function CohortMiniCard({ student, milestones, subtitle, milestoneNoun }) {
   const completed = milestones.filter((m) => m.status === 'complete').length
   const pct = Math.round((completed / milestones.length) * 100)
 
@@ -55,7 +57,7 @@ function CohortMiniCard({ student, milestones }) {
           <ChevronRightIcon />
         </span>
       </div>
-      <p className="mt-0.5 text-xs text-black/45">Cohort 2026</p>
+      <p className="mt-0.5 text-xs text-black/45">{subtitle}</p>
       <div className="mt-3 flex items-center gap-2.5">
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10">
           <motion.div
@@ -69,7 +71,7 @@ function CohortMiniCard({ student, milestones }) {
         <span className="font-mono text-xs font-semibold text-ink">{pct}%</span>
       </div>
       <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-black/40">
-        {completed} of {milestones.length} milestones
+        {completed} of {milestones.length} {milestoneNoun}
       </p>
     </button>
   )
@@ -87,6 +89,12 @@ export default function DashboardSidebar({
   onSignOut,
   isDark,
   onToggleDark,
+  // Other Hub workspaces reuse this sidebar; the defaults are Startup Junction's own copy.
+  workspaceLabel = 'Startup Junction',
+  cardSubtitle = 'Cohort 2026',
+  milestoneNoun = 'milestones',
+  // Path of the My workspace page; when set, a back button sits under the wordmark.
+  backTo,
 }) {
   return (
     <aside className="hidden h-screen w-72 shrink-0 flex-col justify-between overflow-y-auto border-r border-black/10 bg-[#fafaf8] dark:bg-surface transition-colors duration-500 lg:flex">
@@ -96,8 +104,9 @@ export default function DashboardSidebar({
             brevitty<span className="text-orange">.</span>
           </span>
           <p className="mt-1 font-mono text-[10px] font-semibold uppercase tracking-[0.18em] text-black/40">
-            Startup Junction
+            {workspaceLabel}
           </p>
+          {backTo && <BackToWorkspace to={backTo} className="mt-4" />}
         </div>
 
         <nav className="px-3 py-6">
@@ -123,7 +132,9 @@ export default function DashboardSidebar({
       </div>
 
       <div className="space-y-4 border-t border-black/10 p-4">
-        <CohortMiniCard student={student} milestones={milestones} />
+        {milestones?.length > 0 && (
+          <CohortMiniCard student={student} milestones={milestones} subtitle={cardSubtitle} milestoneNoun={milestoneNoun} />
+        )}
 
         <div className="flex items-center gap-3 px-2 py-2">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#0a0a0a] font-mono text-[11px] font-semibold text-white">
@@ -168,6 +179,7 @@ export function DashboardMobileNav({
   onSignOut,
   isDark,
   onToggleDark,
+  backTo,
 }) {
   const [accountOpen, setAccountOpen] = useState(false)
 
@@ -177,6 +189,15 @@ export function DashboardMobileNav({
           the nav underneath scrolls; nav itself is no longer fixed */}
       <div className="fixed inset-x-0 bottom-0 z-40 lg:hidden">
         <nav className="flex items-stretch overflow-x-auto border-t border-black/10 bg-surface/95 backdrop-blur-md">
+          {backTo && (
+            <Link
+              to={backTo}
+              className="flex w-[72px] shrink-0 flex-col items-center justify-center gap-0.5 border-r border-black/10 py-2 outline-none focus-visible:bg-orange/10"
+            >
+              <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center font-mono text-base leading-none text-black/45">←</span>
+              <span className="text-center font-mono text-[9px] font-semibold uppercase leading-tight tracking-[0.06em] text-black/55">My<br />workspace</span>
+            </Link>
+          )}
           {navItems.map((item) => {
             const active = item.id === activeView
             const Icon = item.icon
@@ -222,7 +243,7 @@ export function DashboardMobileNav({
             false-positive ever bothers users. */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 top-px flex w-9 items-center justify-end bg-gradient-to-l from-white/95 via-white/80 to-transparent pr-1"
+          className="pointer-events-none absolute inset-y-0 right-0 top-px flex w-9 items-center justify-end bg-gradient-to-l from-white/95 via-white/80 to-transparent pr-1 dark:from-[#171310]/95 dark:via-[#171310]/80"
         >
           <span className="text-sm font-semibold text-orange">›</span>
         </div>
