@@ -27,6 +27,13 @@ export function clientIp(req) {
   return req.socket?.remoteAddress || 'unknown'
 }
 
+// Adds a Set-Cookie header without clobbering one set earlier in the same response
+// (sign-in sets the Startup Junction and the consulting cookie together).
+export function appendSetCookie(res, cookie) {
+  const prev = res.getHeader('Set-Cookie')
+  res.setHeader('Set-Cookie', [...(prev ? [].concat(prev) : []), cookie])
+}
+
 // Same in-memory style as api/generate.js: best effort, resets on cold start.
 export function makeRateLimiter(max, windowMs) {
   const hits = new Map() // ip -> number[]

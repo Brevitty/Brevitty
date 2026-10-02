@@ -8,28 +8,10 @@
 // `deadlineNote` flagging where the exact date is set by a regional chapter
 // or wasn't published yet — verify on the official URL before relying on it.
 
-// TODO: replace with real API/Sheets call
-export const JOURNEY_STUDENT = {
-  startupName: 'Re-Loop',
-  oneLiner: 'A campus marketplace for reselling textbooks and hostel gear.',
-  description:
-    'Re-Loop lets students list and buy used textbooks, cycles, and hostel gear within their own campus, cutting out random WhatsApp groups and DMs.',
-  problem:
-    'Students lose money and time reselling their stuff through scattered WhatsApp groups with no trust or discovery.',
-  solution: 'A verified, campus-only marketplace with in-app chat and a simple listing flow.',
-  product: 'A mobile-first web app where students list items in under a minute and browse by category and hostel block.',
-  interviewsRun: 12,
-}
+// The student's profile and invoice ledger now come from the StartupProfiles and
+// Invoices tabs via /api/hub/dashboard (api/_lib/dashboardSheet.js).
 
 export const REVENUE_TARGET = 10000
-
-// TODO: replace with real API/Sheets call
-export const INVOICE_LEDGER = [
-  { customer: 'Priya (Hostel B)', amount: 1200, date: '2026-08-18', note: 'Sold: DS textbook set' },
-  { customer: 'Rahul K', amount: 2800, date: '2026-08-27', note: 'Sold: bicycle' },
-  { customer: 'Sneha M', amount: 1450, date: '2026-09-03', note: 'Sold: study table + rack' },
-  { customer: 'Campus Store Co-op', amount: 2800, date: '2026-09-12', note: 'Bulk resale, 6 textbook sets' },
-]
 
 export const getInvoiceTotal = (ledger) => ledger.reduce((sum, row) => sum + row.amount, 0)
 

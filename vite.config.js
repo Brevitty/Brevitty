@@ -11,6 +11,8 @@ import tailwindcss from '@tailwindcss/vite'
 // handler to Node's raw req/res (body parsing, res.status/res.json; the Cookie
 // request header and Set-Cookie response header are plain Node and pass through).
 // Does nothing in the build. Handler edits need a dev-server restart (Node caches imports).
+const DISPATCHER_PREFIXES = new Set(['consulting', 'hub'])
+
 function devApi() {
   return {
     name: 'dev-api',
@@ -33,7 +35,11 @@ function devApi() {
           // /login?x=1 -> "login", /hub/workspace -> "hub/workspace". Segments are [a-z-] only, so no path traversal.
           const name = (req.url || '').split('?')[0].replace(/^\/+|\/+$/g, '')
           if (!/^[a-z][a-z-]*(\/[a-z][a-z-]*)*$/.test(name)) return next()
-          const file = path.resolve(process.cwd(), 'api', `${name}.js`)
+          // A few features (consulting, hub) are one function that dispatches its own sub-routes
+          // (Vercel Hobby's 12-function cap): /api/consulting/login -> api/consulting.js
+          const prefix = name.split('/')[0]
+          const exact = path.resolve(process.cwd(), 'api', `${name}.js`)
+          const file = !fs.existsSync(exact) && DISPATCHER_PREFIXES.has(prefix) ? path.resolve(process.cwd(), 'api', `${prefix}.js`) : exact
           if (!fs.existsSync(file)) return send(404, { error: 'Not found.' })
 
           // collect the raw request body; hand handlers parsed JSON, or the raw

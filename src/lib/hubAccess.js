@@ -1,16 +1,16 @@
 // Pure helpers for Hub redirects. No React, no network.
-import { getPillarBySlug } from '../data/hubPillars.js'
+import { getPillar, getPillarBySlug, pillarHref } from '../data/hubPillars.js'
 
 export const approvedOf = (memberships) => memberships.filter((m) => m.status === 'approved')
 
-// Where a freshly signed-in account should land. Always the workspaces landing
-// screen when there's at least one approved pillar — even just one — so sign-in
-// never skips straight past it into a workspace.
+// Where a freshly signed-in account should land: straight into its workspace when it has
+// exactly one, otherwise the My workspace page (/hub/choose) listing them all.
 export function landingPath(memberships) {
   if (!memberships.length) return '/hub/none'
   const approved = approvedOf(memberships)
   if (!approved.length) return '/hub/status'
-  return '/hub/choose'
+  const only = approved.length === 1 ? getPillar(approved[0].pillar) : null
+  return (only && pillarHref(only)) || '/hub/choose' // a coming-soon workspace has nowhere to go yet
 }
 
 // Open-redirect protection: only same-site absolute paths. Anything else -> null.

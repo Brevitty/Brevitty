@@ -72,7 +72,7 @@ const numberBadge = (i) => (
 const unnumberedMarker = <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-black/20" />
 
 export default function DocumentsView({ onUnauthorized }) {
-  const { loading, error, data } = useJunctionFetch('/api/documents', onUnauthorized)
+  const { loading, error, data } = useJunctionFetch('/api/hub/documents', onUnauthorized)
 
   if (loading) {
     return (

@@ -1,7 +1,7 @@
 // SessionProgress tab reader/writer. Columns (fixed order):
 // email | session_id | completed | quiz_score | completed_date
 import { getCachedTab, cellToString, isChecked, todayISO, upsertRow } from './sheetsClient.js'
-import { SESSIONS } from '../../src/data/mockJunctionDashboard.js'
+import { getMentorSessions } from './dashboardSheet.js'
 
 const TAB = 'SessionProgress'
 const EMAIL_COL = 0
@@ -10,7 +10,9 @@ const COMPLETED_COL = 2
 const QUIZ_SCORE_COL = 3
 const LAST_COL = 'E'
 
-export const VALID_SESSION_IDS = new Set(SESSIONS.map((s) => s.id))
+// Session ids come from the cohort's MentorSessions tab.
+const validSessionIds = async () => new Set((await getMentorSessions()).map((s) => s.id))
+export const isValidSessionId = async (id) => (await validSessionIds()).has(id)
 
 function parseScore(v) {
   const n = Number(cellToString(v))
@@ -20,12 +22,12 @@ function parseScore(v) {
 // { session_id: { completed: boolean, quiz_score: number|null } } — ids with no
 // row are simply absent; a student with no rows yet gets an empty object, not a 500.
 export async function getSessionProgress(email) {
-  const rows = (await getCachedTab(TAB)).slice(1)
+  const [rows, valid] = await Promise.all([getCachedTab(TAB), validSessionIds()])
   const progress = {}
-  for (const r of rows) {
+  for (const r of rows.slice(1)) {
     if (cellToString(r[EMAIL_COL]).trim() !== email) continue
     const sessionId = cellToString(r[SESSION_ID_COL]).trim()
-    if (VALID_SESSION_IDS.has(sessionId)) {
+    if (valid.has(sessionId)) {
       progress[sessionId] = { completed: isChecked(r[COMPLETED_COL]), quiz_score: parseScore(r[QUIZ_SCORE_COL]) }
     }
   }

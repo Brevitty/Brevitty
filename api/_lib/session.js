@@ -7,6 +7,7 @@
 
 import crypto from 'crypto'
 import { findStudent } from './roster.js'
+import { appendSetCookie } from './http.js'
 
 const COOKIE_NAME = 'sj_session'
 const SESSION_MAX_AGE_S = 7 * 24 * 60 * 60
@@ -74,11 +75,11 @@ export function setSessionCookie(req, res, email, password) {
     })
   ).toString('base64url')
   const token = `${payload}.${hmac('sig', payload)}`
-  res.setHeader('Set-Cookie', cookieString(req, token, SESSION_MAX_AGE_S))
+  appendSetCookie(res, cookieString(req, token, SESSION_MAX_AGE_S))
 }
 
 export function clearSessionCookie(req, res) {
-  res.setHeader('Set-Cookie', cookieString(req, '', 0))
+  appendSetCookie(res, cookieString(req, '', 0))
 }
 
 function readPayload(req) {
@@ -97,17 +98,19 @@ function readPayload(req) {
   }
 }
 
+// The roster student behind a valid sj_session cookie, or null. Never sends a response.
+export async function sessionStudent(req) {
+  if (!getSecret()) return null
+  const p = readPayload(req)
+  if (!p) return null
+  const student = await findStudent(p.e).catch(() => null)
+  return student && safeEqual(hmac('pw', student.password), p.f) ? student : null
+}
+
 // Returns { email, name, memberships } for a valid session; otherwise sends 401 and returns null.
 export async function requireSession(req, res) {
-  if (sessionConfigured()) {
-    const p = readPayload(req)
-    if (p) {
-      const student = await findStudent(p.e).catch(() => null)
-      if (student && safeEqual(hmac('pw', student.password), p.f)) {
-        return { email: student.email, name: student.name, memberships: student.memberships }
-      }
-    }
-  }
+  const student = sessionConfigured() ? await sessionStudent(req) : null
+  if (student) return { email: student.email, name: student.name, memberships: student.memberships }
   res.status(401).json({ error: 'Not signed in.' })
   return null
 }

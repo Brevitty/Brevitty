@@ -23,6 +23,18 @@ export const cellToString = (v) => (v === undefined || v === null ? '' : String(
 export const isChecked = (v) => cellToString(v).trim().toUpperCase() === 'TRUE'
 export const todayISO = () => new Date().toISOString().slice(0, 10)
 
+const SHEETS_EPOCH_MS = Date.UTC(1899, 11, 30)
+const MS_PER_DAY = 86_400_000
+// A date typed by hand into a cell comes back from UNFORMATTED_VALUE as a serial number; seeds are RAW strings.
+export const cellToISODate = (v) =>
+  typeof v === 'number' ? new Date(SHEETS_EPOCH_MS + Math.floor(v) * MS_PER_DAY).toISOString().slice(0, 10) : cellToString(v).trim()
+
+// Rows as objects keyed by the tab's own row-1 headers, so column order in the sheet doesn't matter.
+export function rowsToObjects(values) {
+  const headers = (values[0] || []).map((h) => cellToString(h).trim())
+  return values.slice(1).map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i]])))
+}
+
 function normalisePrivateKey(raw) {
   return raw.trim().replace(/^["']|["']$/g, '').replace(/\\n/g, '\n')
 }
@@ -116,6 +128,17 @@ function requireSheetId() {
   return process.env.GOOGLE_SHEET_ID.trim()
 }
 
+// Raw Sheets API call on this spreadsheet, for the setup scripts (tab creation, batch
+// writes, row deletion). `path` starts after the spreadsheet id, e.g. ':batchUpdate'.
+export async function sheetsRequest(path, init = {}) {
+  const res = await sheetsFetch(`${SHEETS_URL}/${requireSheetId()}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init.headers },
+  })
+  if (!res.ok) throw new Error(`Sheets ${init.method || 'GET'} failed: HTTP ${res.status} ${await googleErrorText(res)}`)
+  return res.json()
+}
+
 export async function readSheetRows(tabName, range = 'A:Z') {
   const sheetId = requireSheetId()
   const encodedRange = encodeURIComponent(`'${tabName}'!${range}`)
@@ -153,16 +176,20 @@ export async function updateSheetRow(tabName, rowNumber, rowValues, lastColLette
 const cacheByTab = new Map() // tab -> { rows, fetchedAt }
 const inflightByTab = new Map()
 const retryAfterByTab = new Map()
+const generationByTab = new Map() // bumped on every write, so a read that started before the write never lands in the cache
 
 function refreshTab(tabName, range) {
   if (inflightByTab.has(tabName)) return inflightByTab.get(tabName)
+  const generation = generationByTab.get(tabName) || 0
   const p = readSheetRows(tabName, range)
     .then((rows) => {
-      cacheByTab.set(tabName, { rows, fetchedAt: Date.now() })
+      if ((generationByTab.get(tabName) || 0) === generation) cacheByTab.set(tabName, { rows, fetchedAt: Date.now() })
       retryAfterByTab.delete(tabName)
       return rows
     })
-    .finally(() => inflightByTab.delete(tabName))
+    .finally(() => {
+      if (inflightByTab.get(tabName) === p) inflightByTab.delete(tabName)
+    })
   inflightByTab.set(tabName, p)
   return p
 }
@@ -187,6 +214,8 @@ export async function getCachedTab(tabName, range = 'A:Z') {
 // Call right after a write to that tab so the writer's own next read isn't stale.
 export function invalidateTab(tabName) {
   cacheByTab.delete(tabName)
+  inflightByTab.delete(tabName)
+  generationByTab.set(tabName, (generationByTab.get(tabName) || 0) + 1)
 }
 
 // Re-reads the tab fresh (bypassing cache — stale row numbers must never be

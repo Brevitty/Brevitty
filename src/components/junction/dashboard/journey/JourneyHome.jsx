@@ -1,4 +1,5 @@
-import { JOURNEY_STUDENT, itemIsDone } from '../../../../data/journeyData.js'
+import { itemIsDone } from '../../../../data/journeyData.js'
+import { useJunctionData } from '../../../../lib/junctionData.js'
 import { ArrowRightIcon } from '../icons.jsx'
 
 const cardClass = 'rounded-2xl border border-black/10 bg-surface p-6 transition-colors duration-500'
@@ -13,15 +14,16 @@ export default function JourneyHome({ stages, checklistState, ledgerTotal, hasVe
     ? Math.round((currentStage.completion.doneCount / currentStage.completion.totalCount) * 100)
     : 0
   const greetingName = firstName ? `${firstName}, ` : ''
+  const { profile } = useJunctionData()
 
   return (
     <div>
       <div className={cardClass}>
         <span className={eyebrowClass}>Welcome back</span>
         <h3 className="mt-3 font-display text-2xl font-bold text-ink">
-          {greetingName}{JOURNEY_STUDENT.startupName} is in {currentStage.label}.
+          {greetingName}{profile?.startupName || 'your startup'} is in {currentStage.label}.
         </h3>
-        <p className="mt-2 text-sm text-black/55">{JOURNEY_STUDENT.oneLiner}</p>
+        {profile?.oneLiner && <p className="mt-2 text-sm text-black/55">{profile.oneLiner}</p>}
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-2">

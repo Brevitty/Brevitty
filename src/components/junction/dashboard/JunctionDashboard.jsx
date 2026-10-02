@@ -1,14 +1,13 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import {
-  STUDENT_PROFILE,
-  MILESTONES,
-  SESSIONS,
-  RECENT_ACTIVITY,
-} from '../../../data/mockJunctionDashboard.js'
+import { COMPETITIONS, getInvoiceTotal, getStagesWithStatus, hasVerifiedCompetitionEntry } from '../../../data/journeyData.js'
+import { useJunctionFetch } from '../../../lib/useJunctionFetch.js'
+import { useChecklist } from '../../../lib/useChecklist.js'
+import { JunctionDataContext } from '../../../lib/junctionData.js'
 import { useHideSiteChrome } from '../../../context/ChromeVisibilityContext.jsx'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import ChangePasswordModal from '../ChangePasswordModal.jsx'
+import { MY_WORKSPACE_PATH } from '../../hub/BackToWorkspace.jsx'
 import DashboardSidebar, { DashboardMobileNav } from './DashboardSidebar.jsx'
 import OverviewView from './OverviewView.jsx'
 import JourneyView from './journey/JourneyView.jsx'
@@ -41,6 +40,8 @@ const NAV_ITEMS = [
 ]
 const NAV_IDS = new Set(NAV_ITEMS.map((n) => n.id))
 const DEFAULT_VIEW = 'overview'
+const EMPTY_DASHBOARD = { profile: null, invoices: [], sessions: [], activity: [] }
+const MILESTONE_STATUS = { done: 'complete', current: 'current', locked: 'upcoming' }
 
 // The one real Startup Junction workspace UI. Both entry points — the
 // standalone /startup-junction route (JunctionAuthGate) and /hub/startup
@@ -49,11 +50,22 @@ const DEFAULT_VIEW = 'overview'
 export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) {
   // Real signed-in name where the account has one (roster "name" column is
   // optional — empty string means unset, so we drop the name rather than
-  // fall back to a placeholder); the rest of STUDENT_PROFILE (team) is still
-  // mock data pending the real cohort data source.
+  // fall back to a placeholder). Team, invoices, sessions and activity come from
+  // the sheet via /api/hub/dashboard; the checklist is loaded once here and shared.
   const { user } = useAuth()
-  const student = { ...STUDENT_PROFILE, name: user?.name?.trim() || '' }
+  const dashboard = useJunctionFetch('/api/hub/dashboard', onUnauthorized)
+  const checklist = useChecklist(onUnauthorized)
+  const data = dashboard.data || EMPTY_DASHBOARD
+  const student = { teamName: data.profile?.teamName || 'Your startup', name: user?.name?.trim() || '' }
   const firstName = student.name ? student.name.split(/\s+/)[0] : ''
+
+  // Sidebar progress uses the same checklist-derived stages as Overview and My Journey.
+  const milestones = getStagesWithStatus(
+    checklist.checklistState,
+    getInvoiceTotal(data.invoices),
+    hasVerifiedCompetitionEntry(COMPETITIONS)
+  ).map((st) => ({ id: st.id, n: st.n, label: st.label, status: MILESTONE_STATUS[st.status] }))
+  const shared = { ...data, checklist }
 
   const [changingPassword, setChangingPassword] = useState(false)
   // A deep link like #toolkit opens straight onto that section.
@@ -93,12 +105,13 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
           activeView={activeView}
           onNavigate={setActiveView}
           student={student}
-          milestones={MILESTONES}
+          milestones={milestones}
           email={email}
           onChangePassword={() => setChangingPassword(true)}
           onSignOut={onSignOut}
           isDark={isDark}
           onToggleDark={toggleDark}
+          backTo={MY_WORKSPACE_PATH}
         />
 
         <main className="min-w-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
@@ -112,21 +125,34 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.35, ease }}
           >
-            {activeView === 'overview' && (
-              <OverviewView
-                firstName={firstName}
-                sessions={SESSIONS}
-                activity={RECENT_ACTIVITY}
-                onNavigate={setActiveView}
-                onUnauthorized={onUnauthorized}
-              />
+            {dashboard.loading ? (
+              <p className="p-6 font-mono text-xs uppercase tracking-[0.14em] text-black/40 lg:p-10">Loading your dashboard…</p>
+            ) : dashboard.error ? (
+              <div className="p-6 lg:p-10">
+                <p className="text-sm font-medium text-red-500">{dashboard.error}</p>
+                <button type="button" onClick={dashboard.refetch} className="mt-4 rounded-full bg-orange px-5 py-2 text-sm font-semibold text-ink">
+                  Try again
+                </button>
+              </div>
+            ) : (
+              <JunctionDataContext.Provider value={shared}>
+                {activeView === 'overview' && (
+                  <OverviewView
+                    firstName={firstName}
+                    sessions={data.sessions}
+                    activity={data.activity}
+                    onNavigate={setActiveView}
+                    onUnauthorized={onUnauthorized}
+                  />
+                )}
+                {activeView === 'journey' && <JourneyView onUnauthorized={onUnauthorized} firstName={firstName} />}
+                {activeView === 'toolkit' && <ToolkitView onUnauthorized={onUnauthorized} />}
+                {activeView === 'mentors' && <MentorsView onUnauthorized={onUnauthorized} />}
+                {activeView === 'sessions' && <SessionsView sessions={data.sessions} onUnauthorized={onUnauthorized} />}
+                {activeView === 'attendance' && <AttendanceView sessions={data.sessions} onUnauthorized={onUnauthorized} />}
+                {activeView === 'documents' && <DocumentsView onUnauthorized={onUnauthorized} />}
+              </JunctionDataContext.Provider>
             )}
-            {activeView === 'journey' && <JourneyView onUnauthorized={onUnauthorized} firstName={firstName} />}
-            {activeView === 'toolkit' && <ToolkitView onUnauthorized={onUnauthorized} />}
-            {activeView === 'mentors' && <MentorsView onUnauthorized={onUnauthorized} />}
-            {activeView === 'sessions' && <SessionsView sessions={SESSIONS} onUnauthorized={onUnauthorized} />}
-            {activeView === 'attendance' && <AttendanceView sessions={SESSIONS} onUnauthorized={onUnauthorized} />}
-            {activeView === 'documents' && <DocumentsView onUnauthorized={onUnauthorized} />}
           </motion.div>
         </main>
       </div>
@@ -141,6 +167,7 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
         onSignOut={onSignOut}
         isDark={isDark}
         onToggleDark={toggleDark}
+        backTo={MY_WORKSPACE_PATH}
       />
 
       {changingPassword && (

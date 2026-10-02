@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { JOURNEY_STUDENT, INVOICE_LEDGER, REVENUE_TARGET, itemIsDone } from '../../../../data/journeyData.js'
+import { REVENUE_TARGET, itemIsDone } from '../../../../data/journeyData.js'
+import { useJunctionData } from '../../../../lib/junctionData.js'
 import { ease } from '../motionVariants.js'
 import { CheckIcon } from '../icons.jsx'
 
 const cardClass = 'rounded-2xl border border-black/10 bg-surface p-6 transition-colors duration-500'
 const eyebrowClass = 'font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45'
+// A student whose StartupProfiles row the program team hasn't filled in yet.
+const EMPTY_PROFILE = {}
+const NOT_SET = 'Not added yet'
 const currency = (n) => `₹${n.toLocaleString('en-IN')}`
 
 function StageRail({ stages, selectedStageId, onSelect }) {
@@ -133,6 +137,7 @@ function DeliverableRow({ item, done, disabled, highlighted, onToggle }) {
 }
 
 function OnePager({ ledgerTotal, currentStageLabel }) {
+  const profile = useJunctionData().profile || EMPTY_PROFILE
   return (
     <div className={cardClass}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -147,25 +152,25 @@ function OnePager({ ledgerTotal, currentStageLabel }) {
         </button>
       </div>
 
-      <h3 className="mt-4 font-display text-2xl font-bold text-ink">{JOURNEY_STUDENT.startupName}</h3>
-      <p className="mt-1 text-sm italic text-black/55">{JOURNEY_STUDENT.oneLiner}</p>
+      <h3 className="mt-4 font-display text-2xl font-bold text-ink">{profile.startupName || 'Your startup'}</h3>
+      <p className="mt-1 text-sm italic text-black/55">{profile.oneLiner || NOT_SET}</p>
 
       <dl className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
           <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-black/40">Problem</dt>
-          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{JOURNEY_STUDENT.problem}</dd>
+          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{profile.problem || NOT_SET}</dd>
         </div>
         <div>
           <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-black/40">Solution</dt>
-          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{JOURNEY_STUDENT.solution}</dd>
+          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{profile.solution || NOT_SET}</dd>
         </div>
         <div>
           <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-black/40">Product</dt>
-          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{JOURNEY_STUDENT.product}</dd>
+          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{profile.product || NOT_SET}</dd>
         </div>
         <div>
           <dt className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-black/40">Description</dt>
-          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{JOURNEY_STUDENT.description}</dd>
+          <dd className="mt-1.5 text-sm leading-relaxed text-black/65">{profile.description || NOT_SET}</dd>
         </div>
       </dl>
 
@@ -184,10 +189,11 @@ function OnePager({ ledgerTotal, currentStageLabel }) {
 }
 
 function Traction({ ledgerTotal }) {
+  const { profile, invoices } = useJunctionData()
   const stats = [
     { label: 'Revenue to date', value: currency(ledgerTotal) },
-    { label: 'Interviews run', value: JOURNEY_STUDENT.interviewsRun },
-    { label: 'Invoices logged', value: INVOICE_LEDGER.length },
+    { label: 'Interviews run', value: profile?.interviewsRun ?? 0 },
+    { label: 'Invoices logged', value: invoices.length },
   ]
   return (
     <div className={cardClass}>

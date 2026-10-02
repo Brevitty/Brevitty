@@ -161,9 +161,11 @@ function AccountMenu({ user, onChangePassword, onSignOut }) {
           <Link role="menuitem" to="/hub" className={item}>
             My workspace
           </Link>
-          <button role="menuitem" type="button" onClick={() => { setOpen(false); onChangePassword() }} className={item}>
-            Change password
-          </button>
+          {user?.canChangePassword && (
+            <button role="menuitem" type="button" onClick={() => { setOpen(false); onChangePassword() }} className={item}>
+              Change password
+            </button>
+          )}
           <button role="menuitem" type="button" onClick={() => { setOpen(false); onSignOut() }} className={item}>
             Sign out
           </button>
@@ -358,16 +360,18 @@ export default function Navbar() {
                     My workspace
                   </Link>
                   <div className="flex items-center gap-6 text-sm font-medium text-black/60">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOpen(false)
-                        setChangingPassword(true)
-                      }}
-                      className="min-h-[44px]"
-                    >
-                      Change password
-                    </button>
+                    {user?.canChangePassword && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false)
+                          setChangingPassword(true)
+                        }}
+                        className="min-h-[44px]"
+                      >
+                        Change password
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {

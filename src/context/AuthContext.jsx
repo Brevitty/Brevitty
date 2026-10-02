@@ -15,7 +15,8 @@ export function AuthProvider({ children }) {
         const data = await res.json()
         next = {
           status: 'signedIn',
-          user: { email: data.email, name: data.name || '' },
+          // canChangePassword: only Startup Junction (Students tab) passwords are changeable in-app.
+          user: { email: data.email, name: data.name || '', canChangePassword: Boolean(data.can_change_password) },
           memberships: Array.isArray(data.memberships) ? data.memberships : [],
         }
       }

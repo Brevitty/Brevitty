@@ -35,7 +35,7 @@ const HEADER_MEMBERSHIPS = 'memberships'
 const NO_MEMBERSHIPS_TOKEN = 'none'
 const LEGACY_MEMBERSHIPS = [{ pillar: 'startup', status: 'approved' }]
 
-const CACHE_TTL_MS = 30_000
+const CACHE_TTL_MS = 12_000 // 10-15s: stays under Google's 60 reads/min without hiding sheet edits for long
 const STALE_MAX_MS = 5 * 60_000 // keep serving the last good roster this long after it was fetched
 const FAILURE_BACKOFF_MS = 10_000 // don't hammer Google while it is failing
 const TOKEN_SKEW_MS = 60_000 // refresh the access token a minute before it expires
@@ -240,7 +240,7 @@ function refresh() {
   return inflight
 }
 
-// Fresh (<30s) -> serve. Otherwise refresh; on failure keep serving the last good
+// Fresh (<12s) -> serve. Otherwise refresh; on failure keep serving the last good
 // copy for up to 5 min after it was fetched, then fail closed.
 async function getRoster() {
   const now = Date.now()

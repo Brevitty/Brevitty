@@ -3,8 +3,8 @@ import { useJunctionFetch } from './useJunctionFetch.js'
 // Joins the full Mentors directory against the student's own MentorAssignments
 // rows — used by both MentorsView and OverviewView's mentor card.
 export function useAssignedMentors(onUnauthorized) {
-  const directory = useJunctionFetch('/api/mentors', onUnauthorized)
-  const assignments = useJunctionFetch('/api/mentor-assignments', onUnauthorized)
+  const directory = useJunctionFetch('/api/hub/mentors', onUnauthorized)
+  const assignments = useJunctionFetch('/api/hub/mentor-assignments', onUnauthorized)
 
   const loading = directory.loading || assignments.loading
   const error = directory.error || assignments.error
