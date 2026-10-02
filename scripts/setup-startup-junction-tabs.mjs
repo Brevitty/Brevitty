@@ -1,142 +1,155 @@
-// One-off, idempotent setup: creates the empty tracking tabs for Startup
-// Junction (ChecklistStatus, Attendance, Documents, SessionProgress, Mentors,
-// MentorAssignments) in the same "Startup Junction" Google Sheet the roster
-// already reads from (GOOGLE_SHEET_ID), using the same service account.
+// Idempotent setup for Startup Junction in the sheet the roster reads (GOOGLE_SHEET_ID,
+// same service account):
+//   1. creates the tracking tabs (ChecklistStatus, Attendance, Documents, SessionProgress,
+//      Mentors, MentorAssignments) and the dashboard tabs (StartupProfiles, Invoices,
+//      MentorSessions, Activity); a missing header column is appended, nothing is moved
+//   2. makes sure the Students tab has a "memberships" column (blank = legacy startup:approved,
+//      so existing students are unaffected)
+//   3. seeds the cohort rows every student sees (Mentors, MentorSessions) and the permanent
+//      demo account all@example.com in every tab, with DEMO_ACCOUNT_PASSWORD as its password
 //
-// Safe to re-run: skips any tab that already exists, and only writes a header
-// row into a tab whose row 1 is currently blank (never overwrites row 1 if
-// it already holds something, even if it doesn't match — that's a sign
-// someone else already set it up differently, so this script backs off and
-// says so instead of guessing).
-//
-// Does NOT touch the existing Students tab.
-//
-// Usage: node scripts/setup-startup-junction-tabs.mjs
+// Safe to re-run: seed rows are matched by key and only added when missing. Existing students'
+// rows are never touched.
+//   node scripts/setup-startup-junction-tabs.mjs               # set up + add anything missing
+//   node scripts/setup-startup-junction-tabs.mjs --reset-demo  # also put all@example.com's rows
+//                                                              # back to seed state (after tests)
+import { ensureTabs, upsertRows, countDemoRows, tabIds, requireEnv, wantsReset, istDay, DEMO_ACCOUNT_EMAIL, demoMemberships } from './lib/sheetSetup.mjs'
+import { DASHBOARD_TABS } from '../api/_lib/dashboardSheet.js'
+import { PILLARS } from '../src/data/hubPillars.js'
 
-import { loadEnv } from 'vite'
-import crypto from 'node:crypto'
+requireEnv(['GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_PRIVATE_KEY', 'GOOGLE_SHEET_ID', 'DEMO_ACCOUNT_PASSWORD'])
 
-for (const [k, v] of Object.entries(loadEnv('development', process.cwd(), ''))) {
-  if (process.env[k] === undefined) process.env[k] = v
-}
-
-const TOKEN_URL = 'https://oauth2.googleapis.com/token'
-const SHEETS_URL = 'https://sheets.googleapis.com/v4/spreadsheets'
-const SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
-
+const STUDENTS_TAB = process.env.GOOGLE_SHEET_TAB?.trim() || 'Students'
 const TABS = {
+  [STUDENTS_TAB]: ['email', 'password', 'name', 'memberships'],
   ChecklistStatus: ['email', 'item_id', 'checked', 'checked_date'],
   Attendance: ['email', 'session_id', 'date', 'status'],
   Documents: ['email', 'doc_id', 'status', 'submitted_date'],
   SessionProgress: ['email', 'session_id', 'completed', 'quiz_score', 'completed_date'],
   Mentors: ['mentor_id', 'name', 'expertise', 'bio', 'contact_email'],
   MentorAssignments: ['email', 'mentor_id', 'assigned_date'],
+  ...DASHBOARD_TABS,
 }
 
-function requireEnv(keys) {
-  const missing = keys.filter((k) => !process.env[k]?.trim())
-  if (missing.length) {
-    console.error(`Missing env var(s): ${missing.join(', ')}. Set them in .env.local.`)
-    process.exit(1)
+const email = DEMO_ACCOUNT_EMAIL
+const mine = (rows) => rows.map((r) => ({ email, ...r }))
+
+// Cohort-wide rows (every student sees these). Dates are fixed: they are the cohort calendar.
+const COHORT = {
+  Mentors: [
+    { mentor_id: 'm-priya', name: 'Priya Nair', expertise: 'Product & MVP scoping', bio: 'Ex-product lead at a campus-commerce startup; helps teams cut an MVP down to what proves demand.', contact_email: 'priya.nair@example.com' },
+    { mentor_id: 'm-rohan', name: 'Rohan Mehta', expertise: 'Go-to-market & sales', bio: 'Built two student-focused marketplaces; runs the GTM and first-customer sessions.', contact_email: 'rohan.mehta@example.com' },
+    { mentor_id: 'm-anita', name: 'Anita Rao', expertise: 'Finance & fundraising', bio: 'Angel investor and CA; reviews unit economics and investment readiness.', contact_email: 'anita.rao@example.com' },
+  ],
+  MentorSessions: [
+    { session_id: 'session-1', date: '2026-09-01', time: '5:00 PM – 5:45 PM IST', platform: 'Google Meet', mentor: 'Rohan Mehta', topic: 'Idea validation check-in', summary: 'Idea holds up: confirmed the WhatsApp-group workaround and willingness to pay ₹50/listing.', action_item: 'Get 3 people to actually pay before the next session.' },
+    { session_id: 'session-2', date: '2026-09-15', time: '5:00 PM – 5:45 PM IST', platform: 'Google Meet', mentor: 'Rohan Mehta', topic: 'GTM channel walkthrough', summary: 'Narrowed the ICP to hostel residents and mapped two channels: campus WhatsApp groups and hostel wardens.', action_item: 'Interview 5 more students outside your own hostel by Friday.' },
+    { session_id: 'session-3', date: '2026-09-29', time: '4:00 PM – 5:00 PM IST', platform: 'Google Meet', mentor: 'Priya Nair', topic: 'MVP scope review', summary: 'Cut the MVP to listing + chat; payments stay offline for the pilot.', action_item: 'Ship the listing flow to 10 testers.' },
+    { session_id: 'session-4', date: '2026-10-13', time: '4:00 PM – 5:00 PM IST', platform: 'Google Meet', mentor: 'Anita Rao', topic: 'Unit economics and pricing', summary: '', action_item: '' },
+  ],
+}
+
+// all@example.com: enough in every tab that each dashboard screen shows real data.
+function demoSeed() {
+  return {
+    [STUDENTS_TAB]: [{
+      email,
+      password: process.env.DEMO_ACCOUNT_PASSWORD.trim(),
+      name: 'Demo Account',
+      // Every USER workspace. Never an adminOnly one: Hub Admin comes only from the Admins tab.
+      memberships: demoMemberships(PILLARS),
+    }],
+    ChecklistStatus: mine(
+      ['founder-profile', 'problem-areas', 'team-agreement', 'pitch-deck-draft', 'startup-description', 'problem-statement',
+        'solution-concept', 'competitor-scan', 'interview-log', 'fit-summary', 'product-summary'].map((item_id) => ({
+        item_id, checked: 'TRUE', checked_date: istDay(-10),
+      }))
+    ),
+    Attendance: mine([
+      { session_id: 'session-1', date: '2026-09-01', status: 'present' },
+      { session_id: 'session-2', date: '2026-09-15', status: 'present' },
+      { session_id: 'session-3', date: '2026-09-29', status: 'absent' },
+    ]),
+    Documents: mine([
+      { doc_id: 'bank-account-proof', status: 'verified', submitted_date: istDay(-20) },
+      { doc_id: 'incubation-mou', status: 'verified', submitted_date: istDay(-18) },
+      { doc_id: 'founders-kyc', status: 'submitted', submitted_date: istDay(-3) },
+      { doc_id: 'coi', status: 'submitted', submitted_date: istDay(-2) },
+    ]),
+    SessionProgress: mine([
+      { session_id: 'session-1', completed: 'TRUE', quiz_score: 80, completed_date: '2026-09-02' },
+      { session_id: 'session-2', completed: 'TRUE', quiz_score: 90, completed_date: '2026-09-16' },
+    ]),
+    MentorAssignments: mine([
+      { mentor_id: 'm-priya', assigned_date: '2026-08-20' },
+      { mentor_id: 'm-rohan', assigned_date: '2026-08-20' },
+    ]),
+    StartupProfiles: mine([{
+      startup_name: 'Re-Loop',
+      team_name: 'Re-Loop',
+      one_liner: 'A campus marketplace for reselling textbooks and hostel gear.',
+      description: 'Re-Loop lets students list and buy used textbooks, cycles, and hostel gear within their own campus, cutting out random WhatsApp groups and DMs.',
+      problem: 'Students lose money and time reselling their stuff through scattered WhatsApp groups with no trust or discovery.',
+      solution: 'A verified, campus-only marketplace with in-app chat and a simple listing flow.',
+      product: 'A mobile-first web app where students list items in under a minute and browse by category and hostel block.',
+      interviews_run: 12,
+    }]),
+    Invoices: mine([
+      { date: '2026-08-18', customer: 'Priya (Hostel B)', amount: 1200, note: 'Sold: DS textbook set' },
+      { date: '2026-08-27', customer: 'Rahul K', amount: 2800, note: 'Sold: bicycle' },
+      { date: '2026-09-03', customer: 'Sneha M', amount: 1450, note: 'Sold: study table + rack' },
+      { date: '2026-09-12', customer: 'Campus Store Co-op', amount: 2800, note: 'Bulk resale, 6 textbook sets' },
+    ]),
+    Activity: mine([
+      { date: istDay(-1), kind: 'document', title: 'Pitch deck requested', actor: 'Program team' },
+      { date: istDay(-2), kind: 'complete', title: 'Validation stage completed', actor: 'You' },
+      { date: istDay(-4), kind: 'session', title: 'Session scheduled: Unit economics and pricing', actor: 'with Anita Rao' },
+      { date: istDay(-6), kind: 'feedback', title: 'Mentor feedback received', actor: 'Rohan Mehta' },
+    ]),
   }
 }
-requireEnv(['GOOGLE_SERVICE_ACCOUNT_EMAIL', 'GOOGLE_PRIVATE_KEY', 'GOOGLE_SHEET_ID'])
 
-function normalisePrivateKey(raw) {
-  return raw.trim().replace(/^["']|["']$/g, '').replace(/\\n/g, '\n')
-}
-
-function buildJwt(email, privateKey) {
-  const now = Math.floor(Date.now() / 1000)
-  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url')
-  const unsigned = `${b64({ alg: 'RS256', typ: 'JWT' })}.${b64({
-    iss: email,
-    scope: SCOPE,
-    aud: TOKEN_URL,
-    iat: now,
-    exp: now + 3600,
-  })}`
-  const sig = crypto.createSign('RSA-SHA256').update(unsigned).sign(privateKey, 'base64url')
-  return `${unsigned}.${sig}`
-}
-
-async function googleErrorText(res) {
-  const text = await res.text().catch(() => '')
-  try {
-    const j = JSON.parse(text)
-    return j.error?.message || text.slice(0, 300)
-  } catch {
-    return text.slice(0, 300)
-  }
-}
-
-async function getAccessToken() {
-  const body = new URLSearchParams({
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion: buildJwt(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL.trim(), normalisePrivateKey(process.env.GOOGLE_PRIVATE_KEY)),
-  })
-  const res = await fetch(TOKEN_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body })
-  if (!res.ok) throw new Error(`Google token exchange failed: HTTP ${res.status} ${await googleErrorText(res)}`)
-  return (await res.json()).access_token
+const KEYS = {
+  [STUDENTS_TAB]: ['email'],
+  ChecklistStatus: ['email', 'item_id'],
+  Attendance: ['email', 'session_id'],
+  Documents: ['email', 'doc_id'],
+  SessionProgress: ['email', 'session_id'],
+  Mentors: ['mentor_id'],
+  MentorAssignments: ['email', 'mentor_id'],
+  StartupProfiles: ['email'],
+  Invoices: ['email', 'date', 'customer'],
+  MentorSessions: ['session_id'],
+  Activity: ['email', 'title'],
 }
 
 async function main() {
-  const sheetId = process.env.GOOGLE_SHEET_ID.trim()
-  const token = await getAccessToken()
-  const authed = (url, init = {}) => fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } })
+  const reset = wantsReset()
+  const headers = await ensureTabs(TABS)
+  const { title, ids } = await tabIds()
+  console.log(`Spreadsheet: "${title}"${reset ? ' (resetting all@example.com to seed state)' : ''}`)
 
-  const metaRes = await authed(`${SHEETS_URL}/${sheetId}?fields=sheets.properties.title`)
-  if (!metaRes.ok) throw new Error(`Could not read spreadsheet: HTTP ${metaRes.status} ${await googleErrorText(metaRes)}`)
-  const existingTitles = new Set((await metaRes.json()).sheets.map((s) => s.properties.title))
-
-  const toCreate = Object.keys(TABS).filter((name) => !existingTitles.has(name))
-  if (toCreate.length) {
-    const res = await authed(`${SHEETS_URL}/${sheetId}:batchUpdate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requests: toCreate.map((title) => ({ addSheet: { properties: { title } } })) }),
+  const isDemo = (row) => String(row.email || '').toLowerCase() === email
+  const seed = { ...COHORT, ...demoSeed() }
+  for (const [tab, rows] of Object.entries(seed)) {
+    await upsertRows(tab, headers[tab], rows, KEYS[tab], {
+      reset,
+      // Only the demo account's own extra rows are ever removed; cohort tabs are never pruned.
+      pruneWhere: tab in COHORT ? null : isDemo,
+      sheetTabId: ids[tab],
     })
-    if (!res.ok) throw new Error(`Could not create tab(s): HTTP ${res.status} ${await googleErrorText(res)}`)
-    console.log(`Created tab(s): ${toCreate.join(', ')}`)
+  }
+
+  const counts = await countDemoRows(Object.keys(demoSeed()))
+  const expected = demoSeed()
+  const bad = Object.entries(counts).filter(([tab, n]) => n !== expected[tab].length)
+  console.log(`\n${email} rows: ${Object.entries(counts).map(([t, n]) => `${t}=${n}`).join(', ')}`)
+  if (bad.length) {
+    console.error(`MISMATCH vs seed in: ${bad.map(([t]) => t).join(', ')} (run with ${'--reset-demo'} to restore)`)
+    process.exitCode = 1
   } else {
-    console.log('All tabs already exist — nothing to create.')
+    console.log('Verified: every tab matches the seed. Existing students were not touched.')
   }
-
-  // Check row 1 of every target tab (not just the ones just created) so a
-  // prior partial run — tab created but header write failed — is repaired.
-  const ranges = Object.keys(TABS).map((name) => `'${name}'!A1:Z1`)
-  const getUrl = `${SHEETS_URL}/${sheetId}/values:batchGet?${ranges.map((r) => `ranges=${encodeURIComponent(r)}`).join('&')}`
-  const rowsRes = await authed(getUrl)
-  if (!rowsRes.ok) throw new Error(`Could not read header rows: HTTP ${rowsRes.status} ${await googleErrorText(rowsRes)}`)
-  const rowsByRange = (await rowsRes.json()).valueRanges
-
-  const data = []
-  Object.keys(TABS).forEach((name, i) => {
-    const currentRow = rowsByRange[i]?.values?.[0] || []
-    if (currentRow.length === 0) {
-      data.push({ range: `'${name}'!A1`, values: [TABS[name]] })
-    } else {
-      const expected = TABS[name].join(',').toLowerCase()
-      const actual = currentRow.map((c) => String(c).trim()).join(',').toLowerCase()
-      console.log(
-        actual === expected
-          ? `${name}: header row already set — skipping.`
-          : `${name}: row 1 already has content that doesn't match the expected header — leaving it alone. Check it manually.`
-      )
-    }
-  })
-
-  if (data.length) {
-    const res = await authed(`${SHEETS_URL}/${sheetId}/values:batchUpdate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ valueInputOption: 'RAW', data }),
-    })
-    if (!res.ok) throw new Error(`Could not write header row(s): HTTP ${res.status} ${await googleErrorText(res)}`)
-    console.log(`Wrote header row for: ${data.map((d) => d.range.split('!')[0].replace(/'/g, '')).join(', ')}`)
-  }
-
-  console.log('Done. Students tab was not touched.')
 }
 
 main().catch((err) => {
