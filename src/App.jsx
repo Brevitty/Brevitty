@@ -16,6 +16,7 @@ import GrantsPage from './pages/GrantsPage.jsx'
 import SpacePage from './pages/SpacePage.jsx'
 import StartupJunctionPage from './pages/StartupJunctionPage.jsx'
 import AdminPage from './pages/AdminPage.jsx'
+import ConsultingPage from './pages/ConsultingPage.jsx'
 import SignInPage from './pages/SignInPage.jsx'
 import HubGate from './pages/hub/HubGate.jsx'
 import HubIndexPage from './pages/hub/HubIndexPage.jsx'
@@ -23,6 +24,7 @@ import HubChoosePage from './pages/hub/HubChoosePage.jsx'
 import HubStatusPage from './pages/hub/HubStatusPage.jsx'
 import HubNonePage from './pages/hub/HubNonePage.jsx'
 import WorkspacePage from './pages/hub/WorkspacePage.jsx'
+import LaunchpadMentorPage from './pages/LaunchpadMentorPage.jsx'
 
 export default function App() {
   // The admin dashboard is a standalone tool — no site nav/footer, and it's
@@ -52,6 +54,8 @@ export default function App() {
           <Route path="/space" element={<SpacePage />} />
           <Route path="/startup-junction" element={<StartupJunctionPage />} />
           <Route path="/admin" element={<AdminPage />} />
+          {/* Consulting workspace: own auth + role gate; hides site chrome itself */}
+          <Route path="/consulting/*" element={<ConsultingPage />} />
           <Route path="/signin" element={<SignInPage />} />
           {/* /hub/* : HubGate sends signed-out visitors to /signin?next=...; workspaces also check access server-side */}
           <Route path="/hub" element={<HubGate />}>
@@ -60,6 +64,10 @@ export default function App() {
             <Route path="status" element={<HubStatusPage />} />
             <Route path="none" element={<HubNonePage />} />
             <Route path=":pillar" element={<WorkspacePage />} />
+          </Route>
+          {/* Launchpad Abroad mentor view: same Hub session; LP_Mentors decides access (server-side) */}
+          <Route path="/launchpad/mentor" element={<HubGate />}>
+            <Route index element={<LaunchpadMentorPage />} />
           </Route>
         </Routes>
         {!hideChrome && <Footer />}
