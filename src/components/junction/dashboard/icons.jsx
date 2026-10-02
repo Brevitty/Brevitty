@@ -147,3 +147,53 @@ export function MountainClimberIllustration({ className }) {
     </svg>
   )
 }
+
+/* ---- added for the Launchpad Abroad / Incubation / VAC Learner workspaces ---- */
+export const IdCardIcon = wrap(
+  <>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <circle cx="9" cy="11" r="2.2" />
+    <path d="M5.8 16.5c.5-1.7 1.7-2.6 3.2-2.6s2.7.9 3.2 2.6M14.5 10h4M14.5 13.5h3" />
+  </>
+)
+
+export const ChartIcon = wrap(<path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6.5" />)
+
+export const ShieldIcon = wrap(
+  <>
+    <path d="M12 3.5 19 6v5.5c0 4.3-2.9 7.7-7 9-4.1-1.3-7-4.7-7-9V6l7-2.5Z" />
+    <path d="m9 12 2 2 4-4" />
+  </>
+)
+
+export const CoinIcon = wrap(
+  <>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M9.5 8.5h5M9.5 11.5h5M11 8.5c2.5 0 2.5 3 0 3H9.5l4 4.5" />
+  </>
+)
+
+export const MegaphoneIcon = wrap(<path d="M4 10v4h3l7 4V6L7 10H4ZM17.5 9.5a3.5 3.5 0 0 1 0 5M7 14l1.5 5h2.5L10 15" />)
+
+export const FlagIcon = wrap(<path d="M5.5 21V4M5.5 4.5h11l-2 4 2 4h-11" />)
+
+export const AwardIcon = wrap(
+  <>
+    <circle cx="12" cy="9" r="5.5" />
+    <path d="m9 13.8-1.5 6.7 4.5-2.5 4.5 2.5-1.5-6.7" />
+  </>
+)
+
+export const ClipboardIcon = wrap(
+  <>
+    <rect x="5" y="4.5" width="14" height="16.5" rx="2" />
+    <path d="M9 4.5V3h6v1.5M8.5 11l2 2 4-4M8.5 16.5h7" />
+  </>
+)
+
+export const ClockIcon = wrap(
+  <>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </>
+)

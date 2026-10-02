@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  INVOICE_LEDGER,
   COMPETITIONS,
   getInvoiceTotal,
   getStagesWithStatus,
   hasVerifiedCompetitionEntry,
 } from '../../../../data/journeyData.js'
-import { useChecklist } from '../../../../lib/useChecklist.js'
+import { useJunctionData } from '../../../../lib/junctionData.js'
 import { ease } from '../motionVariants.js'
+import { TabBar } from '../shared.jsx'
 import JourneyHome from './JourneyHome.jsx'
 import MyStartupView from './MyStartupView.jsx'
 import CompetitionsView from './CompetitionsView.jsx'
@@ -28,9 +28,10 @@ export default function JourneyView({ onUnauthorized, firstName }) {
   const [competitions, setCompetitions] = useState(COMPETITIONS)
   const [jumpTarget, setJumpTarget] = useState(null)
 
-  const { loading, error, checklistState, toggleItem } = useChecklist(onUnauthorized)
+  const { invoices, checklist } = useJunctionData()
+  const { loading, error, checklistState, toggleItem } = checklist
 
-  const ledgerTotal = getInvoiceTotal(INVOICE_LEDGER)
+  const ledgerTotal = getInvoiceTotal(invoices)
   const verifiedCompetition = hasVerifiedCompetitionEntry(competitions)
   const stages = getStagesWithStatus(checklistState, ledgerTotal, verifiedCompetition)
 
@@ -65,27 +66,7 @@ export default function JourneyView({ onUnauthorized, firstName }) {
           </h2>
         </div>
 
-        <div className="inline-flex rounded-full border border-black/10 bg-black/[0.03] p-1">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`relative rounded-full px-4 py-2 font-mono text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange ${
-                activeTab === tab.id ? 'text-white' : 'text-black/50 hover:text-ink'
-              }`}
-            >
-              {activeTab === tab.id && (
-                <motion.span
-                  layoutId="journey-tab-pill"
-                  transition={{ duration: 0.35, ease }}
-                  className="absolute inset-0 rounded-full bg-[#0a0a0a]"
-                />
-              )}
-              <span className="relative">{tab.label}</span>
-            </button>
-          ))}
-        </div>
+        <TabBar tabs={TABS} active={activeTab} onChange={setActiveTab} />
       </div>
 
       <AnimatePresence mode="wait">

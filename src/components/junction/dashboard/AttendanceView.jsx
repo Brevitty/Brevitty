@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { viewContainer, viewItem, ease } from './motionVariants.js'
+import { viewContainer, viewItem } from './motionVariants.js'
+import { AttendanceMeter } from './shared.jsx'
 
 function formatDate(dateStr) {
   return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -22,36 +23,6 @@ const STATUS_COPY = {
   // Deliberately no dot and a lighter weight than absent — this hasn't happened
   // yet, so it shouldn't visually read as an outcome the way present/absent do.
   upcoming: { label: 'Upcoming', dotClass: null, textClass: 'text-black/35' },
-}
-
-function AttendanceMeter({ presentCount, heldCount }) {
-  if (heldCount === 0) {
-    return (
-      <p className="mt-6 max-w-md text-sm text-black/55">
-        No sessions have been held yet — your attendance rate will show up here once the first one happens.
-      </p>
-    )
-  }
-  const pct = Math.round((presentCount / heldCount) * 100)
-  return (
-    <div className="mt-6 max-w-md">
-      <div className="flex items-center gap-2.5">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/10">
-          <motion.div
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: pct / 100 }}
-            transition={{ duration: 0.8, ease, delay: 0.2 }}
-            style={{ transformOrigin: 'left' }}
-            className="h-full rounded-full bg-orange"
-          />
-        </div>
-        <span className="font-mono text-sm font-semibold text-ink">{pct}%</span>
-      </div>
-      <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-black/40">
-        {presentCount} of {heldCount} sessions attended
-      </p>
-    </div>
-  )
 }
 
 function AttendanceRow({ session, index, status }) {
@@ -86,7 +57,7 @@ export default function AttendanceView({ sessions, onUnauthorized }) {
     let cancelled = false
     setLoading(true)
     setError('')
-    fetch('/api/attendance')
+    fetch('/api/hub/attendance')
       .then(async (res) => {
         if (res.status === 401) return onUnauthorized()
         const body = await res.json().catch(() => ({}))

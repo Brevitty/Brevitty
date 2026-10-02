@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
-import { viewContainer, viewItem, ease } from './motionVariants.js'
+import { viewContainer, viewItem } from './motionVariants.js'
+import { StageRail } from './shared.jsx'
 import { useAssignedMentors } from '../../../lib/useAssignedMentors.js'
-import { useChecklist } from '../../../lib/useChecklist.js'
+import { useJunctionData } from '../../../lib/junctionData.js'
 import {
-  INVOICE_LEDGER,
   COMPETITIONS,
   getInvoiceTotal,
   getStagesWithStatus,
@@ -43,54 +43,6 @@ const eyebrowClass = 'font-mono text-[11px] font-semibold uppercase tracking-[0.
 const viewAllClass =
   'inline-flex items-center gap-1 text-xs font-semibold text-black/45 transition-colors hover:text-orange'
 
-// Renders journeyData's checklist-derived STAGES (the same shape/status
-// vocab — 'done'|'current'|'locked' — that My Journey's own stage rail uses),
-// not a separate mock milestone list, so the two can never disagree.
-function StageRail({ stages }) {
-  const completedCount = stages.filter((s) => s.status === 'done').length
-  const currentIndex = stages.findIndex((s) => s.status === 'current')
-  const progress = currentIndex === -1 ? completedCount / stages.length : (currentIndex + 0.5) / stages.length
-
-  return (
-    <div className="relative mt-8">
-      <div className="absolute left-0 right-0 top-[13px] h-px bg-black/10" />
-      <motion.div
-        initial={{ scaleX: 0 }}
-        animate={{ scaleX: progress }}
-        transition={{ duration: 0.8, ease, delay: 0.2 }}
-        style={{ transformOrigin: 'left' }}
-        className="absolute left-0 right-0 top-[13px] h-px bg-orange"
-      />
-      <div className="relative grid grid-cols-2 gap-y-6 sm:grid-cols-4 lg:grid-cols-7">
-        {stages.map((s) => {
-          const done = s.status === 'done' || s.status === 'current'
-          return (
-            <div key={s.id} className="flex flex-col items-center text-center">
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-full border-2 ${
-                  done ? 'border-orange bg-orange text-white' : 'border-black/15 bg-surface text-black/30'
-                }`}
-              >
-                <span className="h-3.5 w-3.5">
-                  <CheckIcon />
-                </span>
-              </span>
-              <p className="mt-3 text-xs font-semibold text-ink">{s.label}</p>
-              <p
-                className={`mt-0.5 font-mono text-[9px] uppercase tracking-[0.1em] ${
-                  s.status === 'current' ? 'text-orange' : 'text-black/40'
-                }`}
-              >
-                {s.status === 'done' ? 'Complete' : s.status === 'current' ? 'In progress' : 'Upcoming'}
-              </p>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 const ACTIVITY_STYLE = {
   document: { icon: FileIcon, className: 'bg-orange/10 text-orange' },
   complete: { icon: CheckIcon, className: 'bg-emerald-500 text-white' },
@@ -113,9 +65,10 @@ function greetingFor(hour) {
 
 export default function OverviewView({ firstName, sessions, activity, onNavigate, onUnauthorized }) {
   const { mentors } = useAssignedMentors(onUnauthorized)
-  const { checklistState } = useChecklist(onUnauthorized)
+  const { invoices, checklist } = useJunctionData()
+  const { checklistState } = checklist
 
-  const ledgerTotal = getInvoiceTotal(INVOICE_LEDGER)
+  const ledgerTotal = getInvoiceTotal(invoices)
   const verifiedCompetition = hasVerifiedCompetitionEntry(COMPETITIONS)
   const stages = getStagesWithStatus(checklistState, ledgerTotal, verifiedCompetition)
   const currentStage = stages.find((s) => s.status === 'current') || stages[stages.length - 1]
@@ -331,6 +284,7 @@ export default function OverviewView({ firstName, sessions, activity, onNavigate
             <span className={eyebrowClass}>Recent activity</span>
           </div>
           <div className="mt-5 space-y-4">
+            {!activity.length && <p className="text-sm text-black/55">Nothing yet. Updates from the program team show up here.</p>}
             {activity.map((a) => {
               const style = ACTIVITY_STYLE[a.kind]
               const Icon = style.icon

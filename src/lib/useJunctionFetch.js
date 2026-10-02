@@ -31,5 +31,6 @@ export function useJunctionFetch(url, onUnauthorized) {
   }, [url, onUnauthorized, reloadToken])
 
   const refetch = useCallback(() => setReloadToken((t) => t + 1), [])
-  return { loading, error, data, refetch }
+  // setData lets a view apply a write's response locally instead of refetching.
+  return { loading, error, data, refetch, setData }
 }
