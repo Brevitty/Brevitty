@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { getPillar, getPillarBySlug } from '../../data/hubPillars.js'
+import { getPillar, getPillarBySlug, pillarHref } from '../../data/hubPillars.js'
 import { approvedOf } from '../../lib/hubAccess.js'
 import { PageSpinner } from './HubGate.jsx'
 import HubShell, { primaryPill, secondaryPill } from './HubShell.jsx'
 import JunctionDashboard from '../../components/junction/dashboard/JunctionDashboard.jsx'
+import LaunchpadDashboard from '../../components/launchpad/LaunchpadDashboard.jsx'
+import IncubationDashboard from '../../components/incubation/IncubationDashboard.jsx'
+import VacDashboard from '../../components/vac/VacDashboard.jsx'
+import PartnerDashboard from '../../components/partner/PartnerDashboard.jsx'
+
+// Workspaces with a real dashboard. Each gets the same props and the same access re-check.
+const DASHBOARDS = {
+  startup: JunctionDashboard,
+  launchpad: LaunchpadDashboard,
+  incubation: IncubationDashboard,
+  vac: VacDashboard,
+  partner: PartnerDashboard,
+}
 
 function NotFound() {
   return (
@@ -33,8 +46,8 @@ export function NoAccess({ memberships }) {
       <div className="mt-8 flex flex-wrap gap-3">
         {own.map((m) => {
           const p = getPillar(m.pillar)
-          return p ? (
-            <Link key={m.pillar} to={`/hub/${p.slug}`} className={primaryPill}>
+          return p && pillarHref(p) ? (
+            <Link key={m.pillar} to={pillarHref(p)} className={primaryPill}>
               {p.title} →
             </Link>
           ) : null
@@ -147,18 +160,18 @@ function Workspace({ pillarId }) {
   )
 }
 
-// The one real workspace: /hub/startup renders the exact same dashboard as the
-// standalone /startup-junction route (see StartupJunctionPage.jsx), not a second
-// hand-built copy. HubGate already guarantees signedIn; this only re-checks that
-// this account is specifically approved for the startup pillar (a direct URL
-// visit could otherwise reach an unapproved workspace).
-function StartupWorkspace() {
+// The real workspaces. /hub/startup renders the exact same dashboard as the standalone
+// /startup-junction route (see StartupJunctionPage.jsx), not a second hand-built copy.
+// HubGate already guarantees signedIn; this only re-checks that this account is approved
+// for this pillar (a direct URL visit could otherwise reach an unapproved workspace).
+// The API re-checks it again on every call.
+function DashboardWorkspace({ pillarId }) {
   const { user, memberships, refresh, signOut } = useAuth()
   const navigate = useNavigate()
-  const approved = approvedOf(memberships).some((m) => m.pillar === 'startup')
+  const approved = approvedOf(memberships).some((m) => m.pillar === pillarId)
   if (!approved) return <NoAccess memberships={memberships} />
-  // Leave /hub/startup before dropping the session: otherwise HubGate's signed-out
-  // redirect fires with next=/hub/startup still in the URL, and the next sign-in
+  // Leave /hub/<pillar> before dropping the session: otherwise HubGate's signed-out
+  // redirect fires with next=/hub/<pillar> still in the URL, and the next sign-in
   // skips the landing screen straight back into this workspace (destinationAfterLogin
   // honors that next=). /hub is excluded from that bypass, so this always lands back
   // on the landing screen next time in — same as signing out from /startup-junction.
@@ -166,20 +179,16 @@ function StartupWorkspace() {
     navigate('/hub', { replace: true })
     return signOut()
   }
-  return (
-    <JunctionDashboard
-      email={user?.email || ''}
-      onSignOut={handleSignOut}
-      onUnauthorized={refresh}
-    />
-  )
+  const Dashboard = DASHBOARDS[pillarId]
+  return <Dashboard email={user?.email || ''} onSignOut={handleSignOut} onUnauthorized={refresh} />
 }
 
 export default function WorkspacePage() {
   const { pillar: slug } = useParams()
   const pillar = getPillarBySlug(slug)
   if (!pillar) return <NotFound />
-  if (pillar.id === 'startup') return <StartupWorkspace />
+  if (DASHBOARDS[pillar.id]) return <DashboardWorkspace key={pillar.id} pillarId={pillar.id} />
+  if (pillar.href) return <Navigate to={pillar.href} replace />
   // key: switching between workspaces remounts, so state never leaks across pillars
   return <Workspace key={pillar.id} pillarId={pillar.id} />
 }
