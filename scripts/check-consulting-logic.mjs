@@ -94,26 +94,24 @@ assert.equal(parseSlotToken('2026-13-40|99:00|x'), null)
 assert.equal(isFlag('TRUE'), true)
 assert.equal(isFlag(''), false)
 
-// ---- Hub workspaces: 6 user cards in order, Admin never among them, coming-soon cards don't open ----
+// ---- Hub workspaces: 5 user cards in order, Admin never among them, coming-soon cards don't open ----
 const userPillars = PILLARS.filter((p) => !p.adminOnly).map((p) => p.id)
-assert.deepEqual(userPillars, ['startup', 'consulting', 'launchpad', 'incubation', 'vac', 'partner'])
-assert.equal(userPillars.length, 6)
+assert.deepEqual(userPillars, ['startup', 'consulting', 'launchpad', 'incubation', 'vac'])
+assert.equal(userPillars.length, 5)
 assert.deepEqual(PILLARS.filter((p) => p.adminOnly).map((p) => p.id), ['admin'])
 assert.equal(isAdminPillar('admin'), true)
 assert.equal(isAdminPillar('startup'), false)
 assert.equal(pillarHref(getPillar('startup')), '/hub/startup')
 assert.equal(pillarHref(getPillar('consulting')), '/consulting')
 assert.equal(pillarHref(getPillar('launchpad')), '/hub/launchpad')
-assert.equal(pillarHref(getPillar('partner')), '/hub/partner')
-assert.equal(pillarHref(getPillar('admin')), null) // coming soon
+assert.equal(pillarHref(getPillar('admin')), '/hub/admin')
 
 // Hub landing: one workspace goes straight in, several land on My workspace
 const approved = (...ids) => ids.map((pillar) => ({ pillar, status: 'approved' }))
 assert.equal(landingPath(approved('startup')), '/hub/startup')
 assert.equal(landingPath(approved('consulting')), '/consulting')
 assert.equal(landingPath(approved('startup', 'consulting')), '/hub/choose')
-assert.equal(landingPath(approved('partner')), '/hub/partner')
-assert.equal(landingPath(approved('admin')), '/hub/choose') // a single coming-soon workspace still lands on My workspace
+assert.equal(landingPath(approved('admin')), '/hub/admin')
 assert.equal(landingPath(approved('incubation')), '/hub/incubation')
 assert.equal(landingPath(approved(...userPillars)), '/hub/choose')
 assert.equal(landingPath([{ pillar: 'vac', status: 'pending' }]), '/hub/status')
