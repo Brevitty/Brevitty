@@ -9,17 +9,19 @@ import { list as consultingList, insert as consultingInsert } from './consulting
 import { fail, istToday, addDays, sameEmail, cleanEmail, cleanText } from './consulting/rules.js'
 import { isArchived, sirItems, studentItems } from './consulting/missing.js'
 import { membershipsOf, invalidateRoster } from './roster.js'
-import { isDemoEmail, isEnvAdmin, withoutDemo } from './accounts.js'
+import { isDemoEmail, isDemoSessionId, isEnvAdmin, withoutDemo } from './accounts.js'
 import { progressRows } from './launchpadSheet.js'
 import { PILLARS, MEMBERSHIP_STATUSES } from '../../src/data/hubPillars.js'
 import { INACTIVE_AFTER_DAYS } from '../../src/data/consultingConstants.js'
-import { certificateStatus, ASSIGNMENT_DONE } from '../../src/data/vacRules.js'
+import { attendanceSummary, certificateStatus, ATTENDANCE_MIN_PCT, ASSIGNMENT_DONE } from '../../src/data/vacRules.js'
 import { addYears, MOU_RENEWAL_YEARS, PERIOD_PATTERN, periodKey, quarterOf, FUNDING_RECEIVED } from '../../src/data/incubationRules.js'
 import { getDefaultChecklistState, getStagesWithStatus, getInvoiceTotal, hasVerifiedCompetitionEntry } from '../../src/data/journeyData.js'
 
 /* ---------------- at-risk rules (named, so the dashboards and the check script agree) ---------------- */
 export const MOU_RENEWAL_WARN_DAYS = 60
 const MOU_RENEWAL_HIGH_DAYS = 30
+const MIN_HELD_FOR_ATTENDANCE_FLAG = 2 // one absence out of one session is noise, not risk
+const SEVERE_ATTENDANCE_PCT = 50
 const LP_STALL_DAYS = 30
 const OVERDUE_TASKS_HIGH = 3
 const MISSING_UPDATES_HIGH = 2
@@ -49,11 +51,11 @@ const group = (rows, key = (r) => lc(r.email)) => {
 
 /* ---------------- I/O ---------------- */
 const ALLROWS_TABS = {
-  students: STUDENTS_TAB, cohortSessions: 'CohortSessions',
-  checklist: 'ChecklistStatus', invoices: 'Invoices', profiles: 'StartupProfiles', competitionEntries: 'CompetitionEntries',
+  students: STUDENTS_TAB, cohortSessions: 'CohortSessions', mentors: 'Mentors', mentorAssignments: 'MentorAssignments',
+  checklist: 'ChecklistStatus', attendance: 'Attendance', invoices: 'Invoices', profiles: 'StartupProfiles', competitionEntries: 'CompetitionEntries',
   lpStudents: 'LP_Students', lpChecklist: 'LP_Checklist', lpProfile: 'LP_Profile', lpDocuments: 'LP_Documents', lpSessions: 'LP_Sessions',
-  lpSignoff: 'LP_Signoff', incStartups: 'INC_Startups', incDocuments: 'INC_Documents', incKpis: 'INC_KPIs', incFunding: 'INC_Funding',
-  vacLearners: 'VAC_Learners', vacSessions: 'VAC_Sessions', vacAssignments: 'VAC_Assignments',
+  lpMentors: 'LP_Mentors', lpSignoff: 'LP_Signoff', incStartups: 'INC_Startups', incDocuments: 'INC_Documents', incKpis: 'INC_KPIs', incFunding: 'INC_Funding',
+  vacLearners: 'VAC_Learners', vacSessions: 'VAC_Sessions', vacAttendance: 'VAC_Attendance', vacAssignments: 'VAC_Assignments',
 }
 const CONSULTING_TABS = { consultees: 'Consultees', admins: 'Admins', sessions: 'ConsultingSessions', tasks: 'Tasks', deliverables: 'Deliverables' }
 
@@ -62,6 +64,7 @@ const CONSULTING_TABS = { consultees: 'Consultees', admins: 'Admins', sessions: 
 export function realOnly(db) {
   const out = Object.fromEntries(Object.entries(db).map(([k, rows]) => [k, withoutDemo(rows)]))
   const same = (a, b) => lc(a) === lc(b)
+  out.cohortSessions = out.cohortSessions.filter((s) => !isDemoSessionId(s.session_id))
   out.vacSessions = out.vacSessions.filter((s) => out.vacLearners.some((l) => same(s.course, l.course) && (!s.batch || same(s.batch, l.batch))))
   return out
 }
@@ -149,11 +152,17 @@ function consultingFacts(db, now, today) {
   })
 }
 
-function startupFacts(db) {
+function startupFacts(db, today) {
+  const held = db.cohortSessions.filter((s) => s.session_id && s.date < today)
+  const heldIds = new Set(held.map((s) => s.session_id))
+  const attendanceOf = group(db.attendance)
   const checklistOf = group(db.checklist)
   const invoicesOf = group(db.invoices)
   const entriesOf = group(db.competitionEntries)
+  const assignmentsOf = group(db.mentorAssignments)
+  const mentorsById = new Map(db.mentors.map((m) => [m.mentor_id, m]))
   return (u) => {
+    const present = attendanceOf(u.email).filter((a) => lc(a.status) === 'present' && heldIds.has(a.session_id)).length
     const state = { ...getDefaultChecklistState() }
     for (const r of checklistOf(u.email)) if (lc(r.checked) === 'true' && r.item_id in state) state[r.item_id] = true
     const ledger = getInvoiceTotal(invoicesOf(u.email).map((i) => ({ amount: num(i.amount) })))
@@ -162,10 +171,14 @@ function startupFacts(db) {
     const stage = stages.find((s) => s.status === 'current')
     const itemsDone = Object.values(state).filter(Boolean).length
     return {
+      held: held.length,
+      present,
+      attendancePct: pct(present, held.length),
       stage: stage ? stage.label : stages.at(-1).label,
       stagesDone: stages.filter((s) => s.status === 'done').length,
       itemsDone,
       itemsTotal: Object.keys(state).length,
+      mentors: assignmentsOf(u.email).map((a) => mentorsById.get(a.mentor_id)?.name).filter(Boolean),
     }
   }
 }
@@ -198,12 +211,17 @@ function incubationFacts(db, today) {
 }
 
 function vacFacts(db, today) {
+  const attendanceOf = group(db.vacAttendance)
   const assignmentsOf = group(db.vacAssignments)
   return db.vacLearners.map((l) => {
+    const sessions = db.vacSessions.filter((s) => s.session_id && lc(s.course) === lc(l.course) && (!s.batch || lc(s.batch) === lc(l.batch)))
+    const attendance = Object.fromEntries(attendanceOf(l.email).map((a) => [a.session_id, lc(a.status)]))
+    const summary = attendanceSummary(sessions, attendance, today)
     const assignments = assignmentsOf(l.email).map((a) => ({ ...a, status: lc(a.status) || 'pending' }))
     return {
       learner: l,
-      certificate: certificateStatus(assignments),
+      summary,
+      certificate: certificateStatus(summary, assignments),
       overdue: assignments.filter((a) => a.due && a.due < today && !ASSIGNMENT_DONE.includes(a.status)).length,
     }
   })
@@ -215,7 +233,7 @@ const flag = (u, pillar, kind, severity, title, detail) => ({
 })
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
-function buildFlags({ users, consulting, incubation, vac, lp, today }) {
+function buildFlags({ users, consulting, startup, incubation, vac, lp, today }) {
   const byEmail = new Map(users.map((u) => [lc(u.email), u]))
   const userOf = (email) => byEmail.get(lc(email)) ?? { email, name: '' }
   const flags = []
@@ -235,6 +253,13 @@ function buildFlags({ users, consulting, incubation, vac, lp, today }) {
     if (f.inactive) flags.push(flag(u, 'consulting', 'inactive', 'low', 'No recent session', `No session in the last ${INACTIVE_AFTER_DAYS} days and none booked`))
   }
 
+  for (const u of users.filter((x) => approved(x, 'startup'))) {
+    const f = startup(u)
+    if (f.held >= MIN_HELD_FOR_ATTENDANCE_FLAG && f.attendancePct < ATTENDANCE_MIN_PCT) {
+      flags.push(flag(u, 'startup', 'low_attendance', f.attendancePct < SEVERE_ATTENDANCE_PCT ? 'high' : 'medium', 'Low attendance', `${f.present} of ${f.held} cohort sessions attended (${f.attendancePct}%, minimum ${ATTENDANCE_MIN_PCT}%)`))
+    }
+  }
+
   for (const f of incubation) {
     const u = userOf(f.startup.email)
     if (!f.mouUploaded) flags.push(flag(u, 'incubation', 'mou_missing', 'medium', 'MoU not uploaded', 'No signed MoU on file'))
@@ -246,6 +271,9 @@ function buildFlags({ users, consulting, incubation, vac, lp, today }) {
 
   for (const f of vac) {
     const u = userOf(f.learner.email)
+    if (f.summary.held >= MIN_HELD_FOR_ATTENDANCE_FLAG && f.summary.pct < ATTENDANCE_MIN_PCT) {
+      flags.push(flag(u, 'vac', 'low_attendance', f.summary.pct < SEVERE_ATTENDANCE_PCT ? 'high' : 'medium', 'Low attendance', `${f.summary.present} of ${f.summary.held} classes attended (${f.summary.pct}%, minimum ${ATTENDANCE_MIN_PCT}%)`))
+    }
     if (f.overdue) flags.push(flag(u, 'vac', 'overdue_assignments', f.overdue >= OVERDUE_TASKS_HIGH ? 'high' : 'medium', 'Overdue assignments', `${plural(f.overdue, 'assignment')} past due`))
   }
 
@@ -254,7 +282,7 @@ function buildFlags({ users, consulting, incubation, vac, lp, today }) {
     if (!s.profileReady && s.lastActivity && daysBetween(s.lastActivity, today) > LP_STALL_DAYS) {
       flags.push(flag(u, 'launchpad', 'stalled', 'medium', 'No progress', `Nothing ticked since ${s.lastActivity}; still in ${s.phase}`))
     }
-    if (s.awaitingVerification) flags.push(flag(u, 'launchpad', 'docs_waiting', 'low', 'Documents awaiting verification', `${plural(s.awaitingVerification, 'document')} submitted, not yet verified`))
+    if (s.awaitingVerification) flags.push(flag(u, 'launchpad', 'docs_waiting', 'low', 'Documents awaiting verification', `${plural(s.awaitingVerification, 'document')} submitted, not yet verified by a mentor`))
   }
 
   return flags.sort((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind))
@@ -275,25 +303,34 @@ function buildWorkload({ db, consulting, lp, vac, today }) {
     note: 'Pending = past sessions still missing MoM, tasks or deliverables',
   })
 
-  rows.push({
-    team: 'Startup Junction',
-    name: 'Startup Junction cohort',
-    students: db.students.filter((u) => membershipsOf(u.memberships).some((m) => m.pillar === 'startup' && m.status === 'approved')).length,
-    upcoming: db.cohortSessions.filter((s) => s.session_id && s.date >= today && s.date <= weekEnd).length,
-    pending: db.cohortSessions.filter((s) => s.session_id && s.date < today && !String(s.summary || '').trim()).length,
-    overdue: 0,
-    note: 'Pending = held sessions with no summary logged',
-  })
+  const assignmentsByMentor = group(db.mentorAssignments, (r) => lc(r.mentor_id))
+  for (const m of db.mentors) {
+    const sessions = db.cohortSessions.filter((s) => lc(s.mentor) === lc(m.name))
+    rows.push({
+      team: 'Startup Junction',
+      name: m.name,
+      students: assignmentsByMentor(m.mentor_id).length,
+      upcoming: sessions.filter((s) => s.date >= today && s.date <= weekEnd).length,
+      pending: sessions.filter((s) => s.date < today && !String(s.summary || '').trim()).length,
+      overdue: 0,
+      note: 'Pending = held sessions with no summary logged',
+    })
+  }
 
-  rows.push({
-    team: 'Launchpad Abroad',
-    name: 'Launchpad team',
-    students: lp.length,
-    upcoming: db.lpSessions.filter((s) => s.status !== 'cancelled' && s.date >= today && s.date <= weekEnd).length,
-    pending: lp.reduce((n, s) => n + s.awaitingVerification, 0) + lp.filter((s) => s.phasesDone === 4 && !s.profileReady).length,
-    overdue: 0,
-    note: 'Pending = documents to verify + sign-offs waiting',
-  })
+  const lpByMentor = group(lp, (r) => lc(r.mentorId))
+  const lpSessionsByMentor = group(db.lpSessions, (r) => lc(r.mentor_id))
+  for (const m of db.lpMentors) {
+    const mine = lpByMentor(m.mentor_id)
+    rows.push({
+      team: 'Launchpad Abroad',
+      name: m.name,
+      students: mine.length,
+      upcoming: lpSessionsByMentor(m.mentor_id).filter((s) => s.status !== 'cancelled' && s.date >= today && s.date <= weekEnd).length,
+      pending: mine.reduce((n, s) => n + s.awaitingVerification, 0) + mine.filter((s) => s.phasesDone === 4 && !s.profileReady).length,
+      overdue: 0,
+      note: 'Pending = documents to verify + sign-offs waiting',
+    })
+  }
 
   const facultyOf = group(vac, (r) => lc(r.learner.faculty))
   for (const faculty of [...new Set(vac.map((v) => v.learner.faculty).filter(Boolean))]) {
@@ -304,9 +341,9 @@ function buildWorkload({ db, consulting, lp, vac, today }) {
       name: faculty,
       students: mine.length,
       upcoming: db.vacSessions.filter((s) => courses.has(lc(s.course)) && s.date >= today && s.date <= weekEnd).length,
-      pending: mine.filter((v) => v.certificate.totalAssignments > 0 && !v.certificate.eligible).length,
+      pending: mine.filter((v) => v.summary.pct !== null && v.summary.pct < ATTENDANCE_MIN_PCT).length,
       overdue: mine.reduce((n, v) => n + v.overdue, 0),
-      note: 'Pending = learners not yet eligible for the certificate',
+      note: 'Pending = learners below the attendance minimum',
     })
   }
   return rows.sort((a, b) => b.pending + b.overdue - (a.pending + a.overdue) || b.students - a.students)
@@ -345,11 +382,11 @@ function buildReports({ users, consulting, startup, incubation, vac, lp }) {
     },
     {
       id: 'startup',
-      title: 'Startup Junction: journey stage',
-      columns: [col('name', 'Founder'), col('startup', 'Startup'), col('stage', 'Current stage'), col('items', 'Checklist items')],
+      title: 'Startup Junction: journey stage and attendance',
+      columns: [col('name', 'Founder'), col('startup', 'Startup'), col('stage', 'Current stage'), col('items', 'Checklist items'), col('attendance', 'Attendance'), col('mentors', 'Mentors')],
       rows: users.filter((u) => approved(u, 'startup')).map((u) => {
         const f = startup(u)
-        return { name: u.name || u.email, startup: u.startup || '—', stage: f.stage, items: `${f.itemsDone}/${f.itemsTotal}` }
+        return { name: u.name || u.email, startup: u.startup || '—', stage: f.stage, items: `${f.itemsDone}/${f.itemsTotal}`, attendance: f.attendancePct === null ? '—' : `${f.attendancePct}% (${f.present}/${f.held})`, mentors: f.mentors.join(', ') || '—' }
       }),
     },
     {
@@ -366,11 +403,12 @@ function buildReports({ users, consulting, startup, incubation, vac, lp }) {
     },
     {
       id: 'vac',
-      title: 'VAC Learner: assignments and certificate',
-      columns: [col('name', 'Learner'), col('course', 'Course'), col('assignments', 'Assignments done'), col('certificate', 'Certificate')],
+      title: 'VAC Learner: attendance and certificate',
+      columns: [col('name', 'Learner'), col('course', 'Course'), col('attendance', 'Attendance'), col('assignments', 'Assignments done'), col('certificate', 'Certificate')],
       rows: vac.map((f) => ({
         name: f.learner.name,
         course: f.learner.course,
+        attendance: f.summary.pct === null ? '—' : `${f.summary.pct}% (${f.summary.present}/${f.summary.held})`,
         assignments: `${f.certificate.done}/${f.certificate.totalAssignments}`,
         certificate: f.certificate.eligible ? 'Eligible' : 'Not yet',
       })),
@@ -383,7 +421,7 @@ export function buildModel(db, now = Date.now()) {
   const today = istToday(new Date(now))
   const users = usersOf(db)
   const consulting = consultingFacts(db, now, today)
-  const startup = startupFacts(db)
+  const startup = startupFacts(db, today)
   const incubation = incubationFacts(db, today)
   const vac = vacFacts(db, today)
   const lp = progressRows({ students: db.lpStudents, checklist: db.lpChecklist, profile: db.lpProfile, documents: db.lpDocuments, signoff: db.lpSignoff })

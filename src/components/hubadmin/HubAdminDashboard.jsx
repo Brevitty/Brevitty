@@ -1,8 +1,9 @@
 import PillarDashboard from '../hub/PillarDashboard.jsx'
-import { GridIcon, FlagIcon, ClockIcon, ChartIcon, UsersIcon, BookIcon, AwardIcon } from '../junction/dashboard/icons.jsx'
+import { GridIcon, FlagIcon, ClockIcon, ChartIcon, UsersIcon, BookIcon, AwardIcon, CalendarCheckIcon } from '../junction/dashboard/icons.jsx'
 import { MasterView, AtRiskView, WorkloadView, ReportsView, UsersView } from './HubAdminViews.jsx'
 import { ContentView } from './ContentView.jsx'
 import { LaunchpadStudentsView } from './LaunchpadStudentsView.jsx'
+import { AttendanceAdminView } from './AttendanceAdminView.jsx'
 
 // ids match the Hub Admin nav in hubPillars.js
 const NAV_ITEMS = [
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
   { id: 'reports', label: 'Reports', icon: ChartIcon, View: ReportsView },
   { id: 'users', label: 'User Management', icon: UsersIcon, View: UsersView },
   { id: 'launchpad', label: 'Launchpad students', icon: AwardIcon, View: LaunchpadStudentsView },
+  { id: 'attendance', label: 'Attendance', icon: CalendarCheckIcon, View: AttendanceAdminView },
   { id: 'content', label: 'Content', icon: BookIcon, View: ContentView },
 ]
 

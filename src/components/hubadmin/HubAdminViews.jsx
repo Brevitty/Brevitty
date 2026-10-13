@@ -173,7 +173,7 @@ export function AtRiskView({ onUnauthorized }) {
       <ViewHeader
         eyebrow="At-risk flags"
         title="Who needs a nudge."
-        subtitle="Computed live: missing MoM or deliverables, overdue tasks, overdue assignments, MoU renewals within 60 days, and stalled progress."
+        subtitle="Computed live: missing MoM or deliverables, overdue tasks, attendance under 75%, MoU renewals within 60 days, and stalled progress."
       />
       <motion.div variants={viewItem} className="mt-8 flex flex-wrap gap-3">
         <select aria-label="Filter by workspace" value={pillar} onChange={(e) => setPillar(e.target.value)} className={`${inputClass} sm:max-w-[240px]`}>
@@ -192,7 +192,7 @@ export function AtRiskView({ onUnauthorized }) {
         <DataTable
           rows={visible}
           rowKey={(f) => f.id}
-          empty={flags.length ? 'No flags match these filters. Clear a filter to see the rest.' : 'No one is flagged. Flags appear automatically when a member misses MoM, has overdue work, or an MoU is close to renewal.'}
+          empty={flags.length ? 'No flags match these filters. Clear a filter to see the rest.' : 'No one is flagged. Flags appear automatically when a member misses MoM, falls below 75% attendance, or an MoU is close to renewal.'}
           columns={[
             { key: 'name', label: 'Member', width: '1.2fr', render: (f) => <><span className="font-semibold">{f.name}</span><span className="block text-xs text-black/45">{f.email}</span></> },
             { key: 'pillarTitle', label: 'Workspace', width: '1fr' },
@@ -212,12 +212,12 @@ export function WorkloadView({ onUnauthorized }) {
   if (gate) return gate
   return (
     <Page>
-      <ViewHeader eyebrow="Workload" title="Who is carrying what." subtitle="Each team, with what is on their plate this week and what is still pending." />
+      <ViewHeader eyebrow="Workload" title="Who is carrying what." subtitle="Mentors, consultants and faculty, with what is on their plate this week and what is still pending." />
       <div className="mt-8">
         <DataTable
           rows={data.rows}
           rowKey={(r) => `${r.team}:${r.name}`}
-          empty="No team workload on record yet."
+          empty="No mentors or faculty on record yet. They appear here once they are added to the Mentors, LP_Mentors or VAC_Learners tabs."
           columns={[
             { key: 'name', label: 'Name', width: '1.3fr', render: (r) => <><span className="font-semibold">{r.name}</span><span className="block text-xs text-black/45">{r.team}</span></> },
             { key: 'students', label: 'Students', width: '80px' },

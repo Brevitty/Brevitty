@@ -1,5 +1,5 @@
 // Hub Admin > Content: add / edit / remove the team-curated reference rows (competitions, schemes,
-// journey templates, cohort sessions, VAC classes). Fields and rules come from the API
+// mentors, journey templates, cohort sessions, VAC classes). Fields and rules come from the API
 // (api/_lib/contentAdmin.js), so this screen never hardcodes a column.
 import { useState } from 'react'
 import { useJunctionFetch } from '../../lib/useJunctionFetch.js'
