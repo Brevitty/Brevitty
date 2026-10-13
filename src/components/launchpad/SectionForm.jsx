@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Field, SaveNote, inputClass, primaryButton } from '../hub/ui.jsx'
 
 // Edits one PROFILE_SECTIONS section (text / textarea / link fields; `student`-sourced fields
-// are skipped: they come from the intake record). Saves only the fields that
+// are skipped: they come from the record the mentor created). Saves only the fields that
 // changed, one LP_Profile row each.
 export default function SectionForm({ section, profile, onSaveField }) {
   const fields = section.fields.filter((f) => f.source !== 'student')

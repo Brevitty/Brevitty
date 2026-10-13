@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ProgressMeter } from '../junction/dashboard/shared.jsx'
+import { AttendanceMeter } from '../junction/dashboard/shared.jsx'
 import { DOCUMENTS } from '../../data/launchpadChecklist.js'
 import { formatDate } from '../../lib/hubApi.js'
 import { FILE_HINT } from '../../lib/storage.ts'
@@ -31,10 +31,10 @@ export default function DocumentsView({ lp }) {
       <ViewHeader
         eyebrow="Documents"
         title={`${verified} of ${DOCUMENTS.length} verified.`}
-        subtitle={`Upload each document; the Launchpad team verifies it. ${FILE_HINT}.`}
+        subtitle={`Upload each document; your mentor verifies it. ${FILE_HINT}.`}
       />
       <motion.div variants={viewItem}>
-        <ProgressMeter done={verified} total={DOCUMENTS.length} caption={`${verified} verified · ${submitted} awaiting review · ${DOCUMENTS.length - verified - submitted} pending`} />
+        <AttendanceMeter presentCount={verified} heldCount={DOCUMENTS.length} caption={`${verified} verified · ${submitted} awaiting review · ${DOCUMENTS.length - verified - submitted} pending`} />
       </motion.div>
 
       <div className="mt-10 flex flex-col gap-3">

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Page, ViewHeader, Field, SaveNote, inputClass, primaryButton, viewItem } from '../hub/ui.jsx'
 
 // First visit of a newly approved student: they create their own Launchpad record.
+// The mentor is assigned by the Hub team afterwards.
 // `save` folds the response (the whole new workspace) into the loaded data, so the views open at once.
 export default function SetupView({ save }) {
   const [form, setForm] = useState({ name: '', grade: '', school: '', guardian_name: '', guardian_contact: '', guardian_consent: false })

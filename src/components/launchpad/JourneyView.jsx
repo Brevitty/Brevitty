@@ -77,7 +77,7 @@ function JourneyHome({ lp, onOpenPhase }) {
       <div className="mt-5 rounded-2xl bg-[#0a0a0a] p-6 text-white dark:bg-gradient-to-br dark:from-[#1c1512] dark:to-[#241a12]">
         <span className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-white/45">End state · Profile Ready</span>
         <h3 className="mt-3 font-display text-2xl font-bold">
-          {profileReady ? 'Signed off. Your profile is ready for applications.' : allDone ? 'All four phases done. Waiting for the Launchpad team’s sign-off.' : 'Unlocks when Phase 4 is complete and the Launchpad team signs off.'}
+          {profileReady ? 'Signed off. Your profile is ready for applications.' : allDone ? 'All four phases done. Waiting for your mentor’s sign-off.' : 'Unlocks when Phase 4 is complete and your mentor signs off.'}
         </h3>
         {profileReady && data.signoff && (
           <p className="mt-2 text-sm text-white/55">

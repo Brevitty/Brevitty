@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { useJunctionFetch } from '../../lib/useJunctionFetch.js'
 import { hubPost, formatDate, formatTime, istTodayISO } from '../../lib/hubApi.js'
 import { PHASES, PROFILE_SECTIONS, DOCUMENTS, deriveLaunchpad, allPhasesDone, profileReadySeal } from '../../data/launchpadChecklist.js'
-import { StageRail, ProgressMeter } from '../junction/dashboard/shared.jsx'
+import { StageRail, AttendanceMeter } from '../junction/dashboard/shared.jsx'
 import { CheckIcon } from '../junction/dashboard/icons.jsx'
 import { FileLink } from '../hub/FileUpload.jsx'
 import {
@@ -82,7 +82,7 @@ function StudentList({ data, onOpen }) {
               <span className="mr-1.5 font-mono text-xs text-orange">{s.phaseN}</span>
               {s.phase}
             </span>
-            <ProgressMeter done={s.completeness} total={100} caption="profile complete" className="w-full sm:w-40 sm:shrink-0" />
+            <AttendanceMeter presentCount={s.completeness} heldCount={100} caption="profile complete" className="w-full sm:w-40 sm:shrink-0" />
             <div className="flex flex-wrap gap-2 sm:ml-auto">
               {s.profileReady && <Pill tone="done">Profile Ready</Pill>}
               {s.awaitingVerification > 0 && <Pill tone="active">{`${s.awaitingVerification} to verify`}</Pill>}

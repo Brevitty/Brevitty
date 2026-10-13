@@ -1,11 +1,13 @@
 // /api/files/* — uploads and downloads for every Hub workspace (see api/_lib/files.js).
 //   POST upload-url  {pillar, doc_id, filename, size, type} -> {path, upload_url, content_type}
 //                    needs an approved membership in that pillar; the path is always the caller's own.
-//   GET  view?path=  302 to a 5-minute signed URL. Allowed for the file's owner and a Hub admin. Opened in a new tab, so errors are HTML.
+//   GET  view?path=  302 to a 5-minute signed URL. Allowed for the file's owner, a Hub admin, and
+//                    (Launchpad files only) a Launchpad mentor. Opened in a new tab, so errors are HTML.
 import { readJson } from './_lib/http.js'
 import { currentIdentity } from './_lib/signIn.js'
 import { ApiError } from './_lib/consulting/rules.js'
 import { createUploadUrl, signedViewUrl, parsePath, ownsPath } from './_lib/files.js'
+import { isLaunchpadMentor } from './_lib/launchpadSheet.js'
 
 const hasPillar = (identity, id) => identity.memberships.some((m) => m.pillar === id && m.status === 'approved')
 
@@ -25,10 +27,11 @@ function htmlError(res, status, message) {
   )
 }
 
-function canView(identity, path) {
+async function canView(identity, path) {
   const parsed = parsePath(path)
   if (!parsed) return false
-  return ownsPath(identity.email, path) || hasPillar(identity, 'admin')
+  if (ownsPath(identity.email, path) || hasPillar(identity, 'admin')) return true
+  return parsed.pillar === 'launchpad' && (await isLaunchpadMentor(identity.email))
 }
 
 export default async function handler(req, res) {
@@ -45,7 +48,7 @@ export default async function handler(req, res) {
 
     if (isView) {
       const path = url.searchParams.get('path') || ''
-      if (!(canView(identity, path))) throw new ApiError(403, 'You do not have access to this file.')
+      if (!(await canView(identity, path))) throw new ApiError(403, 'You do not have access to this file.')
       res.statusCode = 302
       res.setHeader('Location', await signedViewUrl(path))
       return res.end()

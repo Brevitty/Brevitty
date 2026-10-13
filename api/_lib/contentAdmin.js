@@ -4,7 +4,7 @@
 import { allRows, upsert, newId } from './pillarStore.js'
 import { readSheetRows, updateSheetRow, invalidateTab, cellToString } from './sheetsClient.js'
 import { fail, cleanText, cleanDate, cleanLink, cleanEmail } from './consulting/rules.js'
-import { withoutDemo, DEMO_VAC_BATCH } from './accounts.js'
+import { withoutDemo, isDemoSessionId, DEMO_VAC_BATCH } from './accounts.js'
 import { STAGES } from '../../src/data/journeyData.js'
 
 const JOURNEY_ITEMS = STAGES.flatMap((s) => s.deliverables.filter((d) => !d.computed).map((d) => ({ value: d.id, label: `${s.label}: ${d.label}` })))
@@ -26,6 +26,16 @@ export const CONTENT_TABS = {
       f('prize', 'Prize'), f('url', 'Official link', 'url', { required: true }), f('checklist', 'Steps to apply (one per line)', 'lines'), f('active', 'Active', 'bool'),
     ],
   },
+  Mentors: {
+    title: 'Startup Junction mentors', key: 'mentor_id', idPrefix: 'mentor', titleField: 'name',
+    note: 'Founders see the mentors assigned to them (MentorAssignments tab).',
+    fields: [f('name', 'Name', 'text', { required: true }), f('expertise', 'Expertise'), f('bio', 'Bio', 'long'), f('contact_email', 'Contact email', 'email')],
+  },
+  LP_Mentors: {
+    title: 'Launchpad mentors', key: 'mentor_id', idPrefix: 'lpm', titleField: 'name',
+    note: 'The contact email is the mentor’s Hub login: it opens the Launchpad mentor view.',
+    fields: [f('name', 'Name', 'text', { required: true }), f('expertise', 'Expertise'), f('bio', 'Bio', 'long'), f('contact_email', 'Contact email (Hub login)', 'email', { required: true })],
+  },
   INC_SchemeList: {
     title: 'Government schemes', key: 'id', idPrefix: 'scheme', titleField: 'name',
     note: 'Shown to Incubation startups under Schemes while Active is on.',
@@ -44,9 +54,9 @@ export const CONTENT_TABS = {
   },
   CohortSessions: {
     title: 'Startup Junction sessions', key: 'session_id', idPrefix: 'session', titleField: 'topic',
-    note: 'Cohort sessions every Startup Junction founder sees (Sessions).',
+    note: 'Cohort sessions every Startup Junction founder sees (Sessions and Attendance).',
     fields: [
-      f('date', 'Date', 'date', { required: true }), f('time', 'Time (e.g. 5:00 PM – 6:00 PM IST)'), f('platform', 'Platform'),
+      f('date', 'Date', 'date', { required: true }), f('time', 'Time (e.g. 5:00 PM – 6:00 PM IST)'), f('platform', 'Platform'), f('mentor', 'Mentor'),
       f('topic', 'Topic', 'text', { required: true }), f('summary', 'Summary (after the session)', 'long'), f('action_item', 'Action item'),
     ],
   },
@@ -62,7 +72,8 @@ export const CONTENT_TABS = {
 
 const configOf = (tab) => (Object.hasOwn(CONTENT_TABS, tab) ? CONTENT_TABS[tab] : fail(400, 'Unknown content type.'))
 // Demo-account rows (and the demo VAC batch) never show up in admin views.
-const visible = (tab, rows) => withoutDemo(rows).filter((r) => r[CONTENT_TABS[tab].key] && !(tab === 'VAC_Sessions' && r.batch === DEMO_VAC_BATCH))
+const visible = (tab, rows) =>
+  withoutDemo(rows).filter((r) => r[CONTENT_TABS[tab].key] && !(tab === 'VAC_Sessions' && r.batch === DEMO_VAC_BATCH) && !(tab === 'CohortSessions' && isDemoSessionId(r.session_id)))
 
 export async function listContent(tab) {
   const cfg = configOf(tab)
@@ -101,6 +112,9 @@ export async function saveContent(body) {
   if (!key) key = cfg.idPrefix ? newId(cfg.idPrefix) : values[cfg.key]
   else if (values[cfg.key] !== undefined && values[cfg.key] !== key) fail(400, 'The journey item of an existing entry can’t change. Delete it and add a new one.')
   if (!body.key && !cfg.idPrefix && rows.some((r) => r[cfg.key] === key)) fail(409, 'That journey item already has links. Edit the existing entry instead.')
+  if (body.tab === 'LP_Mentors' && rows.some((r) => r[cfg.key] !== key && String(r.contact_email).trim().toLowerCase() === values.contact_email)) {
+    fail(409, 'Another Launchpad mentor already uses that email.')
+  }
   await upsert(body.tab, { [cfg.key]: key }, values)
   return listContent(body.tab)
 }

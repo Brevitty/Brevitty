@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import ScrollToTop from './components/ScrollToTop.jsx'
@@ -9,6 +9,7 @@ const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
 const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'))
 const EventsPage = lazy(() => import('./pages/EventsPage.jsx'))
 const EventDetailPage = lazy(() => import('./pages/EventDetailPage.jsx'))
+const LaunchpadMentorPage = lazy(() => import('./pages/LaunchpadMentorPage.jsx'))
 const MentorsPage = lazy(() => import('./pages/MentorsPage.jsx'))
 const MentorProfilePage = lazy(() => import('./pages/MentorProfilePage.jsx'))
 const PartnersPage = lazy(() => import('./pages/PartnersPage.jsx'))
@@ -68,8 +69,10 @@ export default function App() {
             <Route path="consulting-admin/*" element={<ConsultingAdminPage />} />
             <Route path=":pillar" element={<WorkspacePage />} />
           </Route>
-          {/* Retired: the Launchpad staff review now lives in Hub Admin > Launchpad students. */}
-          <Route path="/launchpad/mentor" element={<Navigate to="/hub/launchpad" replace />} />
+          {/* Launchpad Abroad mentor view: same Hub session; LP_Mentors decides access (server-side) */}
+          <Route path="/launchpad/mentor" element={<HubGate />}>
+            <Route index element={<LaunchpadMentorPage />} />
+          </Route>
         </Routes>
         </Suspense>
         {!hideChrome && <Footer />}

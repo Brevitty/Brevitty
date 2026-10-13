@@ -1,4 +1,4 @@
-// Launchpad Abroad data (student workspace + Hub Admin staff review). Email is the join key everywhere.
+// Launchpad Abroad data (student workspace + mentor view + Hub Admin review). Email is the join key everywhere.
 // Phase/checklist/profile/document DEFINITIONS live in src/data/launchpadChecklist.js; the tabs
 // only hold what each student did. Created + seeded by scripts/setup-sheets.js.
 import { allRows, rowsFor, upsert, patchWhere, append, newId, warm } from './pillarStore.js'
@@ -11,13 +11,14 @@ import {
 } from '../../src/data/launchpadChecklist.js'
 
 export const LP_TABS = {
-  LP_Students: ['email', 'name', 'grade', 'school', 'guardian_name', 'guardian_contact', 'guardian_consent'],
+  LP_Students: ['email', 'name', 'grade', 'school', 'guardian_name', 'guardian_contact', 'guardian_consent', 'mentor_id'],
   LP_Checklist: ['email', 'item_id', 'checked', 'checked_date'],
   LP_Profile: ['email', 'section', 'field', 'value'],
   LP_Documents: ['email', 'doc_id', 'status', 'submitted_date', 'link'],
-  LP_Sessions: ['session_id', 'email', 'date', 'time', 'status', 'mom', 'deliverables', 'tasks'],
+  LP_Sessions: ['session_id', 'email', 'mentor_id', 'date', 'time', 'status', 'mom', 'deliverables', 'tasks'],
+  LP_Mentors: ['mentor_id', 'name', 'expertise', 'bio', 'contact_email'],
   LP_Signoff: ['email', 'profile_ready', 'signed_by', 'date'],
-  LP_Feedback: ['email', 'date', 'feedback'],
+  LP_Feedback: ['email', 'mentor_id', 'date', 'feedback'],
 }
 
 const MAX_SESSION_TEXT = 2000
@@ -32,18 +33,20 @@ const byEmail = (rows) => {
   return (email) => m.get(String(email).toLowerCase()) || []
 }
 
+const publicMentor = (m) => m && { mentorId: m.mentor_id, name: m.name, expertise: m.expertise, bio: m.bio, contactEmail: m.contact_email }
 const publicStudent = (s) => ({
   email: s.email,
   name: s.name,
   grade: s.grade,
   school: s.school,
   guardian: { name: s.guardian_name, contact: s.guardian_contact, consent: isTrue(s.guardian_consent) },
+  mentorId: s.mentor_id,
 })
 const checkedMap = (rows) => Object.fromEntries(rows.filter((r) => isTrue(r.checked) && ITEM_IDS.has(r.item_id)).map((r) => [r.item_id, true]))
 const profileMap = (rows) => Object.fromEntries(rows.map((r) => [`${r.section}.${r.field}`, r.value]))
 const signoffOf = ([r]) => (r ? { profileReady: isTrue(r.profile_ready), signedBy: r.signed_by, date: r.date } : null)
 
-function publicSession(r, today) {
+function publicSession(r, today, mentorsById) {
   const past = r.status === 'completed' || r.date < today
   return {
     sessionId: r.session_id,
@@ -51,6 +54,7 @@ function publicSession(r, today) {
     time: r.time,
     status: r.status || 'scheduled',
     past,
+    mentor: mentorsById.get(r.mentor_id)?.name || '',
     mom: r.mom,
     deliverables: r.deliverables,
     tasks: r.tasks,
@@ -66,22 +70,25 @@ function sortSessions(list) {
 
 async function loadAll() {
   await warm(Object.keys(LP_TABS))
-  const [students, checklist, profile, documents, sessions, signoff, feedback] = await Promise.all(
+  const [students, checklist, profile, documents, sessions, mentors, signoff, feedback] = await Promise.all(
     Object.keys(LP_TABS).map((t) => allRows(t))
   )
-  return { students, checklist, profile, documents, sessions, signoff, feedback }
+  return { students, checklist, profile, documents, sessions, mentors, signoff, feedback }
 }
 
 // Everything one student's workspace shows. A signed-in account with no LP_Students row gets
 // student: null and empty lists (the UI shows a clean empty state).
 function workspaceFrom(db, email, { withCommunity = true } = {}) {
   const today = istToday()
+  const mentorsById = new Map(db.mentors.map((m) => [m.mentor_id, m]))
   const studentRow = db.students.find((s) => sameEmail(s.email, email))
   const own = (rows) => rows.filter((r) => sameEmail(r.email, email))
   const checked = checkedMap(own(db.checklist))
   const profile = profileMap(own(db.profile))
   const student = studentRow ? publicStudent(studentRow) : null
-  const sessions = sortSessions(own(db.sessions).map((r) => publicSession(r, today)))
+  const sessions = sortSessions(own(db.sessions).map((r) => publicSession(r, today, mentorsById)))
+
+  const mentor = publicMentor(mentorsById.get(studentRow?.mentor_id) || mentorsById.get(own(db.sessions).at(-1)?.mentor_id))
 
   const out = {
     today,
@@ -92,9 +99,10 @@ function workspaceFrom(db, email, { withCommunity = true } = {}) {
       .filter((d) => DOCUMENT_IDS.has(d.doc_id))
       .map((d) => ({ docId: d.doc_id, status: d.status || 'pending', submittedDate: d.submitted_date, link: d.link })),
     sessions,
+    mentor,
     signoff: signoffOf(own(db.signoff)),
     feedback: own(db.feedback)
-      .map((f) => ({ date: f.date, feedback: f.feedback }))
+      .map((f) => ({ date: f.date, mentor: mentorsById.get(f.mentor_id)?.name || '', feedback: f.feedback }))
       .sort((a, b) => b.date.localeCompare(a.date)),
   }
   if (withCommunity) out.community = communityFrom(db, email)
@@ -125,7 +133,8 @@ function communityFrom(db, email) {
 
 export async function getLaunchpad(email) {
   const db = await loadAll()
-  return workspaceFrom(db, email)
+  // isMentor: the student workspace links to the mentor view for accounts that are also mentors.
+  return { ...workspaceFrom(db, email), isMentor: db.mentors.some((m) => sameEmail(m.contact_email, email)) }
 }
 
 /* ---------------- student writes (always the signed-in email's own rows) ---------------- */
@@ -136,7 +145,7 @@ async function requireLpStudent(email) {
   return row
 }
 
-// A newly approved student creates their own record.
+// A newly approved student creates their own record (the mentor is assigned by the team later).
 // body: { name, grade, school, guardian_name, guardian_contact?, guardian_consent: boolean }
 export async function setupStudent(email, body) {
   if ((await rowsFor('LP_Students', email)).length) fail(409, 'Your Launchpad record already exists.')
@@ -149,6 +158,7 @@ export async function setupStudent(email, body) {
     guardian_name: cleanText(body.guardian_name, 'Guardian name', { required: true, max: 120 }),
     guardian_contact: cleanText(body.guardian_contact, 'Guardian contact', { max: 120 }),
     guardian_consent: 'TRUE',
+    mentor_id: '',
   })
   return getLaunchpad(email)
 }
@@ -183,7 +193,7 @@ export async function submitDocument(email, body) {
   if (!DOCUMENT_IDS.has(docId)) fail(400, 'Unknown document.')
   await requireLpStudent(email)
   const [existing] = (await rowsFor('LP_Documents', email)).filter((d) => d.doc_id === docId)
-  if (existing?.status === 'verified') fail(409, 'This document is already verified by the Launchpad team.')
+  if (existing?.status === 'verified') fail(409, 'This document is already verified by your mentor.')
   const link = await checkUploaded(email, 'launchpad', body.file_path)
   const row = await upsert('LP_Documents', { email, doc_id: docId }, { status: 'submitted', submitted_date: istToday(), link })
   if (existing?.link !== link) await removeFile(existing?.link)
@@ -205,6 +215,87 @@ export async function updateMySession(email, body) {
   return { sessionId, ...changes }
 }
 
+/* ---------------- mentor (authorised by LP_Mentors.contact_email) ---------------- */
+
+export const isLaunchpadMentor = async (email) => (await allRows('LP_Mentors')).some((m) => sameEmail(m.contact_email, email))
+
+export async function requireMentor(email) {
+  const mentor = (await allRows('LP_Mentors')).find((m) => sameEmail(m.contact_email, email))
+  if (!mentor) fail(403, 'This account is not a Launchpad Abroad mentor.')
+  return mentor
+}
+
+export async function mentorStudents(email) {
+  const mentor = await requireMentor(email)
+  const db = await loadAll()
+  const students = progressRows(db)
+    .filter((s) => !sameEmail(s.email, email) && !isDemoEmail(s.email)) // mentors see real students only
+    .map(({ email, name, grade, school, phase, phaseN, completeness, profileReady, awaitingVerification, mentorId }) => ({
+      email, name, grade, school, phase, phaseN, completeness, profileReady, awaitingVerification, mine: mentorId === mentor.mentor_id,
+    }))
+  return { mentor: publicMentor(mentor), students }
+}
+
+// The student a mentor action targets. A mentor who is also a student can never act on their own record.
+async function requireMentorStudentRow(body, mentorEmail) {
+  const email = typeof body.email === 'string' ? body.email.trim() : ''
+  if (email && sameEmail(email, mentorEmail)) fail(403, 'Mentors can’t review their own record.')
+  const [row] = email && !isDemoEmail(email) ? await rowsFor('LP_Students', email) : []
+  if (!row) fail(404, 'Student not found.')
+  return row
+}
+
+export async function mentorStudentDetail(mentorEmail, query) {
+  await requireMentor(mentorEmail)
+  const db = await loadAll()
+  if (sameEmail(query.email || '', mentorEmail)) fail(403, 'Mentors can’t review their own record.')
+  const row = db.students.find((s) => sameEmail(s.email, query.email || '') && !isDemoEmail(s.email))
+  if (!row) fail(404, 'Student not found.')
+  return workspaceFrom(db, row.email, { withCommunity: false })
+}
+
+export async function mentorFeedback(mentorEmail, body) {
+  const mentor = await requireMentor(mentorEmail)
+  const student = await requireMentorStudentRow(body, mentorEmail)
+  const feedback = cleanText(body.feedback, 'feedback', { required: true, max: MAX_FEEDBACK })
+  await append('LP_Feedback', { email: student.email, mentor_id: mentor.mentor_id, date: istToday(), feedback })
+  return { ok: true }
+}
+
+export async function mentorSchedule(mentorEmail, body) {
+  const mentor = await requireMentor(mentorEmail)
+  const student = await requireMentorStudentRow(body, mentorEmail)
+  if (!isDate(body.date)) fail(400, 'date must be YYYY-MM-DD.')
+  if (!isTime(body.time)) fail(400, 'time must be HH:mm (24h).')
+  if (body.date < istToday()) fail(400, 'Pick today or a later date.')
+  const clash = (await allRows('LP_Sessions')).some(
+    (s) => s.mentor_id === mentor.mentor_id && s.date === body.date && s.time === body.time && s.status !== 'cancelled'
+  )
+  if (clash) fail(409, 'You already have a session in that slot.')
+  const session = { session_id: newId('lps'), email: student.email, mentor_id: mentor.mentor_id, date: body.date, time: body.time, status: 'scheduled' }
+  await append('LP_Sessions', session)
+  return { sessionId: session.session_id }
+}
+
+export async function mentorVerifyDocument(mentorEmail, body) {
+  await requireMentor(mentorEmail)
+  const student = await requireMentorStudentRow(body, mentorEmail)
+  const docId = typeof body.doc_id === 'string' ? body.doc_id : ''
+  const [doc] = (await rowsFor('LP_Documents', student.email)).filter((d) => d.doc_id === docId)
+  if (!doc || doc.status !== 'submitted' || !doc.link) fail(409, 'Only a submitted document can be verified.')
+  await patchWhere('LP_Documents', { email: student.email, doc_id: docId }, { status: 'verified' })
+  return { docId, status: 'verified' }
+}
+
+export async function mentorSignOff(mentorEmail, body) {
+  const mentor = await requireMentor(mentorEmail)
+  const student = await requireMentorStudentRow(body, mentorEmail)
+  const phases = phasesWithStatus(checkedMap(await rowsFor('LP_Checklist', student.email)))
+  if (!allPhasesDone(phases)) fail(409, 'Profile Ready unlocks once Phase 4 (Prove Impact) is complete.')
+  await upsert('LP_Signoff', { email: student.email }, { profile_ready: 'TRUE', signed_by: mentor.name, date: istToday() })
+  return { profileReady: true }
+}
+
 /* ---------------- staff review (Hub Admin only: the route layer checks the admin membership) ---------------- */
 
 // Each Launchpad student's computed progress (phase, profile completeness, sign-off, documents waiting).
@@ -222,6 +313,7 @@ export function progressRows(db) {
       name: s.name,
       grade: s.grade,
       school: s.school,
+      mentorId: s.mentor_id,
       phase: phase ? phase.label : 'All phases done',
       phaseN: phase ? phase.n : '04',
       phasesDone: phases.filter((p) => p.status === 'done').length,
