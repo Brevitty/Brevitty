@@ -76,14 +76,12 @@ Non-trivial calls made while building Launchpad Abroad, Incubation and VAC Learn
 - **Launchpad demo student** is a Grade 12 school record in Jaipur while the same login is a GCEC Jaipur student elsewhere: the demo account spans workspaces, so the Launchpad record keeps its school fields.
 - **No lint script** exists (no ESLint in the project); `vite build` plus the check scripts were run instead.
 
-## 2026-10-13: Mentors and Attendance retired from the Hub
-- **Retired, not deleted**: the `Attendance`, `Mentors`, `MentorAssignments`, `LP_Mentors` and `VAC_Attendance` tabs (and the `mentor_id` / `mentor` columns in `LP_*` and `MentorSessions`) are no longer read or written by the app. Their rows are untouched. They are no longer created by `scripts/setup-sheets.js`; delete them by hand when you are sure.
-- **Sessions stay**: cohort sessions (tab keeps its historical name `MentorSessions`), consulting sessions, Launchpad sessions and VAC classes are unchanged, minus the mentor name.
-- **Launchpad staff review moved** to Hub Admin > Launchpad students (`/api/hub/admin/launchpad*`, admin check on every call). The `/launchpad/mentor` login path is gone (the URL redirects to `/hub/launchpad`). Scheduling now blocks a clash for the same student instead of the same mentor; sign-off records the admin's name.
-- **VAC certificate** is now eligible = every assignment submitted (it used to also need 75% attendance). Needs your decision if you want a different rule.
-- **At-risk / workload / reports**: the "low attendance" flags and the attendance and mentor columns are gone. Workload now has one row each for the Startup Junction cohort and the Launchpad team instead of one per mentor.
-- **Public website untouched**: `/mentors`, the home-page mentor strip and `/admin` founder tool are marketing content, not the Hub.
+## 2026-10-13: Mentors and Attendance are active again
+- Restored across the site, API, Hub Admin and the Sheet after a brief removal: Startup Junction Mentors and Attendance, mentor names on sessions, the VAC Attendance page and the 75% certificate rule, the Launchpad assigned-mentor card and mentor view (`/launchpad/mentor`), low-attendance flags, attendance and mentor report columns, and Content → Mentors / Launchpad mentors. The `Attendance`, `Mentors`, `MentorAssignments`, `LP_Mentors` and `VAC_Attendance` tabs were never touched. Hub Admin → Launchpad students stays.
+- **Attendance marking**: Hub Admin → Attendance saves present / absent per real founder per cohort session to the long-format `Attendance` tab (batched: one read, one batch update, one append). Server-side admin check; demo accounts never listed.
+- **Demo data**: `all@example.com` has three `cs_demo_*` cohort sessions, two attendance rows and a mentor assignment to `mentor_demo`. `Mentors` stays empty for real entries, so the demo sees "No mentor assigned yet". Demo cohort sessions are hidden from every other account and every admin view.
+- `scripts/_clean-tabs.mjs` no longer treats any tab as retired.
 
 ## 2026-10-13: Sheet tidy
 - `MentorSessions` is now `CohortSessions` (constant, code, docs). `setup-sheets.js` renames the live tab in place (rows kept) and orders + colours every tab by pillar (`scripts/lib/tabGroups.mjs`).
-- 17 tabs are not used by the app (5 retired, 12 unreferenced). `scripts/_clean-tabs.mjs` deletes them: dry run by default, `--apply` to delete. Backup first: `node scripts/backup-sheet.mjs`. See `SHEET_TABS.md`.
+- 12 tabs are not used by the app (all unreferenced). `scripts/_clean-tabs.mjs` deletes them: dry run by default, `--apply` to delete. Backup first: `node scripts/backup-sheet.mjs`. See `SHEET_TABS.md`.

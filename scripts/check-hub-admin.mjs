@@ -16,10 +16,10 @@ import { tabIds } from './lib/sheetSetup.mjs'
 const NOW = Date.parse('2026-10-12T06:30:00Z') // 12:00 IST, a Monday
 const TODAY = '2026-10-12'
 const empty = () => ({
-  students: [], consultees: [], admins: [], sessions: [], tasks: [], deliverables: [], cohortSessions: [],
-  checklist: [], invoices: [], profiles: [], competitionEntries: [], lpStudents: [], lpChecklist: [], lpProfile: [], lpDocuments: [],
-  lpSessions: [], lpSignoff: [], incStartups: [], incDocuments: [], incKpis: [], incFunding: [], vacLearners: [], vacSessions: [],
-  vacAssignments: [],
+  students: [], consultees: [], admins: [], sessions: [], tasks: [], deliverables: [], cohortSessions: [], mentors: [], mentorAssignments: [],
+  checklist: [], attendance: [], invoices: [], profiles: [], competitionEntries: [], lpStudents: [], lpChecklist: [], lpProfile: [], lpDocuments: [],
+  lpSessions: [], lpMentors: [], lpSignoff: [], incStartups: [], incDocuments: [], incKpis: [], incFunding: [], vacLearners: [], vacSessions: [],
+  vacAttendance: [], vacAssignments: [],
 })
 const kinds = (m, email) => m.flags.filter((f) => f.email === email).map((f) => f.kind).sort()
 
@@ -27,8 +27,9 @@ const kinds = (m, email) => m.flags.filter((f) => f.email === email).map((f) => 
 {
   const db = empty()
   db.students.push({ email: 'a@example.com', name: 'A', memberships: 'startup:approved' }, { email: 'b@example.com', name: 'B', memberships: 'startup:pending' })
-  // B is pending, so never flagged. A has nothing to flag.
-  db.cohortSessions = ['s1', 's2', 's3'].map((id, i) => ({ session_id: id, date: addDays(TODAY, -(i + 2)), summary: 'x' }))
+  // A attended 1 of 3 held cohort sessions -> low attendance. B is pending, so never flagged.
+  db.cohortSessions = ['s1', 's2', 's3'].map((id, i) => ({ session_id: id, date: addDays(TODAY, -(i + 2)), mentor: 'M', summary: 'x' }))
+  db.attendance = [{ email: 'a@example.com', session_id: 's1', status: 'present' }, { email: 'b@example.com', session_id: 's1', status: 'absent' }]
 
   // Incubation: renewal exactly on the 60-day edge is flagged, 61 is not; no MoU is flagged separately.
   const mou = (email, daysLeft) => ({ email, kind: 'mou', file_path: 'https://x.test/mou', uploaded_at: addYears(addDays(TODAY, daysLeft), -3) })
@@ -40,13 +41,14 @@ const kinds = (m, email) => m.flags.filter((f) => f.email === email).map((f) => 
   db.sessions = [{ session_id: 'x1', email: 'c@example.com', date: addDays(TODAY, -8), start_time: '10:00', end_time: '10:30', status: 'completed', mom: '', no_tasks: '', no_deliverables: '', archived: '' }]
   db.tasks = [1, 2, 3].map((i) => ({ task_id: `t${i}`, session_id: 'x1', email: 'c@example.com', task: 't', due_date: addDays(TODAY, -i), status: 'open' }))
 
-  // VAC: one overdue assignment.
+  // VAC: 1 of 4 held classes attended + one overdue assignment.
   db.vacLearners = [{ email: 'v@example.com', name: 'V', course: 'E', batch: 'B', faculty: 'F' }]
   db.vacSessions = [1, 2, 3, 4].map((i) => ({ session_id: `v${i}`, date: addDays(TODAY, -i), course: 'E', batch: 'B' }))
+  db.vacAttendance = [{ email: 'v@example.com', session_id: 'v1', status: 'present' }]
   db.vacAssignments = [{ assignment_id: 'a1', email: 'v@example.com', title: 'T', due: addDays(TODAY, -2), status: 'pending' }]
 
   const m = buildModel(db, NOW)
-  assert.deepEqual(kinds(m, 'a@example.com'), [])
+  assert.deepEqual(kinds(m, 'a@example.com'), ['low_attendance'])
   assert.deepEqual(kinds(m, 'b@example.com'), [])
   assert.ok(kinds(m, 'edge60@example.com').includes('mou_renewal'), 'renewal at 60 days is flagged')
   assert.ok(!kinds(m, 'edge61@example.com').includes('mou_renewal'), 'renewal at 61 days is not')
@@ -54,7 +56,8 @@ const kinds = (m, email) => m.flags.filter((f) => f.email === email).map((f) => 
   assert.ok(kinds(m, 'nomou@example.com').includes('mou_missing'))
   assert.deepEqual(kinds(m, 'c@example.com').filter((k) => k !== 'inactive'), ['missing_updates', 'overdue_tasks'])
   assert.equal(m.flags.find((f) => f.email === 'c@example.com' && f.kind === 'overdue_tasks').severity, 'high') // 3 overdue
-  assert.deepEqual(kinds(m, 'v@example.com'), ['overdue_assignments'])
+  assert.deepEqual(kinds(m, 'v@example.com'), ['low_attendance', 'overdue_assignments'])
+  assert.equal(m.flags.find((f) => f.email === 'v@example.com' && f.kind === 'low_attendance').severity, 'high') // 25% < 50%
   assert.equal(m.flags[0].severity, 'high') // sorted most severe first
   assert.equal(m.overview.totals.users, m.users.length)
   assert.equal(m.overview.totals.pendingApprovals, 1) // B's pending startup membership
@@ -71,8 +74,10 @@ const kinds = (m, email) => m.flags.filter((f) => f.email === email).map((f) => 
   db.consultees = [{ email: DEMO, name: 'Demo', startup_name: 'D' }]
   db.vacLearners = [{ email: DEMO, name: 'Demo', course: 'E', batch: 'DEMO' }, { email: 'real@uni.edu', name: 'Real', course: 'E', batch: 'B' }]
   db.vacSessions = [{ session_id: 'd1', course: 'E', batch: 'DEMO', date: TODAY }, { session_id: 'r1', course: 'E', batch: 'B', date: TODAY }]
+  db.lpMentors = [{ mentor_id: 'x', name: 'Demo', contact_email: DEMO }]
+  db.cohortSessions = [{ session_id: 'cs_demo_01', date: TODAY, topic: 'Demo' }, { session_id: 'real1', date: TODAY, topic: 'Real' }]
   const m = buildModel(realOnly(db), NOW)
-  assert.ok(!JSON.stringify(m).includes(DEMO), 'demo account leaked into the admin model')
+  assert.ok(!JSON.stringify(m).includes(DEMO) && !JSON.stringify(m).includes('cs_demo_'), 'demo account leaked into the admin model')
   assert.equal(m.overview.upcomingThisWeek.vac, 1, "only real learners' classes count")
   assert.equal(m.overview.totals.users, 1)
   console.log('PASS  admin model excludes the demo account')
@@ -133,7 +138,7 @@ const signIn = async (email, password) => {
   return b
 }
 
-const HUB_ADMIN_GETS = ['overview', 'at-risk', 'workload', 'reports', 'users', 'launchpad', 'content?tab=Competitions'].map((r) => ['GET', `/api/hub/admin/${r}`])
+const HUB_ADMIN_GETS = ['overview', 'at-risk', 'workload', 'reports', 'users', 'launchpad', 'attendance', 'content?tab=Competitions'].map((r) => ['GET', `/api/hub/admin/${r}`])
 const CONSULTING_ADMIN_GETS = ['summary', 'consultees', 'sessions', 'board'].map((r) => ['GET', `/api/consulting/admin/${r}`])
 const ADMIN_POSTS = [
   ['POST', '/api/hub/admin/users', { email: 'x@example.com', name: 'X' }],
@@ -162,8 +167,7 @@ const demo = await signIn(DEMO, creds.demo)
 await check('demo account is not an admin: every admin route is 403', async () => {
   for (const [m, p, b] of [...HUB_ADMIN_GETS, ...CONSULTING_ADMIN_GETS, ...ADMIN_POSTS]) assert.equal((await demo(m, p, b)).status, 403, p)
   assert.equal((await demo('GET', '/api/hub/workspace?pillar=admin')).status, 403)
-  assert.equal((await demo('GET', '/api/hub/admin/launchpad')).status, 403)
-  assert.equal((await demo('GET', '/api/hub/launchpad/mentor')).status, 404) // the old mentor routes are gone
+  assert.equal((await demo('GET', '/api/hub/launchpad/mentor')).status, 403) // not a Launchpad mentor either
 })
 await check("a user cannot open another user's file, or upload outside their workspaces", async () => {
   for (const path of ['startup/someone@uni.edu/x/1-a.pdf', 'consulting/someone@uni.edu/x/1-a.pdf', `vac/${DEMO}/../someone/1-a.pdf`]) {
@@ -194,7 +198,7 @@ await check('admin: every admin page answers, and none mentions the demo account
     assert.equal(r.status, 200, p)
     assert.ok(!r.text.toLowerCase().includes(DEMO), `${p} mentions ${DEMO}`)
   }
-  for (const tab of ['INC_SchemeList', 'ItemResources', 'CohortSessions', 'VAC_Sessions']) {
+  for (const tab of ['INC_SchemeList', 'Mentors', 'LP_Mentors', 'ItemResources', 'CohortSessions', 'VAC_Sessions']) {
     const r = await admin('GET', `/api/hub/admin/content?tab=${tab}`)
     assert.equal(r.status, 200, tab)
     assert.ok(!r.text.toLowerCase().includes(DEMO) && !r.text.includes('"DEMO"'), `content ${tab} shows demo rows`)

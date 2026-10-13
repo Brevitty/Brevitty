@@ -15,7 +15,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { ensureTabs, requireEnv, istDay, tabIds } from './lib/sheetSetup.mjs'
 import { sheetsRequest } from '../api/_lib/sheetsClient.js'
-import { DEMO_EMAILS, DEMO_VAC_BATCH } from '../api/_lib/accounts.js'
+import { DEMO_EMAILS, DEMO_VAC_BATCH, DEMO_SESSION_PREFIX } from '../api/_lib/accounts.js'
 import { ALL_SCHEMAS, STUDENTS_TAB } from './lib/schemas.js'
 import { PILLARS } from '../src/data/hubPillars.js'
 import { quarterOf } from '../src/data/incubationRules.js'
@@ -152,10 +152,23 @@ put('VAC_Assignments',
   { assignment_id: 'vas_demo0002', email: DEMO, title: 'Business model canvas', due: d(-3), status: 'submitted', link: file('vac', 'vas_demo0002', 'Business-model-canvas.pdf', 'Business model canvas') },
   { assignment_id: 'vas_demo0003', email: DEMO, title: 'Pitch outline', due: d(5), status: 'pending', link: '' },
 )
+put('VAC_Attendance', ['present', 'present', 'absent'].map((status, i) => ({ email: DEMO, session_id: `vac_demo_0${i + 1}`, status })))
 put('VAC_Feedback', { email: DEMO, area: 'course', rating: '5', comment: 'The customer-discovery session changed how I ran interviews.', submitted_date: d(-4) })
 
+/* ---------------- Startup Junction: cohort sessions, attendance, mentor assignment ---------------- */
+// Demo cohort sessions use DEMO_SESSION_PREFIX, so no real founder or admin ever sees them.
+const COHORT_PLAN = [[-14, 'Problem validation'], [-7, 'Customer interviews'], [5, 'Pricing and revenue']]
+put('CohortSessions', COHORT_PLAN.map(([off, topic], i) => ({
+  session_id: `${DEMO_SESSION_PREFIX}0${i + 1}`, date: d(off), time: '5:00 PM – 6:00 PM IST', platform: 'Google Meet', topic,
+  summary: off < 0 ? 'Walked through the interview script and shared findings.' : '', action_item: off < 0 ? 'Run five more interviews' : '',
+})))
+put('Attendance', COHORT_PLAN.filter(([off]) => off < 0).map(([off], i) => ({ email: DEMO, session_id: `${DEMO_SESSION_PREFIX}0${i + 1}`, date: d(off), status: 'present' })))
+// The Mentors directory stays empty for real entries (Hub Admin > Content), so this assignment shows
+// "No mentor assigned yet" until a mentor with this id is added.
+put('MentorAssignments', { email: DEMO, mentor_id: 'mentor_demo', assigned_date: d(-20) })
+
 /* ---------------- run ---------------- */
-const isDemoRow = (tab, o) => lc(o.email) === DEMO || lc(o.contact_email) === DEMO || (tab === 'VAC_Sessions' && o.batch === DEMO_VAC_BATCH)
+const isDemoRow = (tab, o) => lc(o.email) === DEMO || lc(o.contact_email) === DEMO || (tab === 'VAC_Sessions' && o.batch === DEMO_VAC_BATCH) || (tab === 'CohortSessions' && String(o.session_id).startsWith(DEMO_SESSION_PREFIX))
 
 async function main() {
   const headers = await ensureTabs(ALL_SCHEMAS)

@@ -1,6 +1,6 @@
 # DB_MAP: every Hub page, where its data comes from
 
-Tab-by-tab status, order and colours: see `SHEET_TABS.md`. Cohort sessions live in the `CohortSessions` tab (renamed from `MentorSessions`).
+Tab-by-tab status, order and colours: see `SHEET_TABS.md`. Cohort sessions live in the `CohortSessions` tab (renamed from `MentorSessions`). Demo cohort sessions use ids starting `cs_demo_` and are visible to the demo account only.
 
 Google Sheets is the only database (`GOOGLE_SHEET_ID`, the roster's service account). Supabase Storage holds uploaded files only; a pasted link works wherever an upload does.
 `email` is the join key everywhere; child rows have stable ids (`session_id`, `task_id`, `deliverable_id`, `doc_id`, `id`).
@@ -14,9 +14,9 @@ Status of every page: **Sheet** = served from the tabs below, **Code** = definit
 
 | id | Title | Opens | API |
 |---|---|---|---|
-| startup | Startup Junction Founder | `/hub/startup` | `/api/hub/{dashboard,documents,competitions}`, `/api/checklist`, `/api/session-progress` |
+| startup | Startup Junction Founder | `/hub/startup` | `/api/hub/{dashboard,mentors,mentor-assignments,documents,attendance,competitions}`, `/api/checklist`, `/api/session-progress` |
 | consulting | Consulting | `/consulting` (own shell) | `/api/consulting/*` |
-| launchpad | Launchpad Abroad | `/hub/launchpad` (staff review: Hub Admin > Launchpad students) | `/api/hub/launchpad` |
+| launchpad | Launchpad Abroad | `/hub/launchpad`, mentor view `/launchpad/mentor` (also Hub Admin > Launchpad students) | `/api/hub/launchpad[/mentor…]` |
 | incubation | Incubation | `/hub/incubation` | `/api/hub/incubation[/…]` |
 | vac | VAC Learner | `/hub/vac` | `/api/hub/vac[/…]` |
 | admin (adminOnly) | Hub Admin | `/hub/admin`, Consulting admin `/hub/consulting-admin` | `/api/hub/admin/*`, `/api/consulting/admin/*` |
@@ -36,12 +36,14 @@ Partner Services was removed earlier and is not a pillar. No pillar was invented
 | Page / section | Data | Tab (columns) | Endpoint |
 |---|---|---|---|
 | Sidebar card | team name, stage progress | `StartupProfiles.team_name`; stage computed from `ChecklistStatus` | dashboard + checklist |
-| Overview | greeting, current stage, next action, next session, recent activity | `ChecklistStatus`, `Invoices`, `CompetitionEntries`, `CohortSessions` (cohort sessions), `Activity` | `GET dashboard`, `GET checklist` |
+| Overview | greeting, current stage, next action, next session, mentors, recent activity | `ChecklistStatus`, `Invoices`, `CompetitionEntries`, `CohortSessions`, `MentorAssignments`+`Mentors`, `Activity` | `GET dashboard`, `GET checklist`, `GET mentor-assignments`, `GET mentors` |
 | My Journey: Home | stage rail, due-now items | same as Overview | same |
 | My Journey: My Startup | checklist, one-pager, ledger | `ChecklistStatus` (email,item_id,checked,checked_date), `StartupProfiles` (email,startup_name,team_name,one_liner,description,problem,solution,product,interviews_run), `Invoices` (email,date,customer,amount,note), `ItemResources` (item_id,template_url,sample_url) | `GET/POST /api/checklist`, `GET dashboard` |
 | My Journey: Competitions | catalogue + the student's status, star, proof links | `Competitions` (comp_id,name,org,about,eligibility,event_date,deadline,deadline_note,prize,url,checklist,active), `CompetitionEntries` (email,comp_id,status,saved,proof,updated_at) | `GET dashboard`, `POST competitions` |
 | Toolkit | tool list, AI generation | tool definitions in code (`junctionTools.js`) | `/api/generate` |
-| Sessions | cohort sessions, per-student completion + quiz | `CohortSessions` (session_id,date,time,platform,topic,summary,action_item), `SessionProgress` (email,session_id,completed,quiz_score,completed_date) | `GET dashboard`, `GET/POST /api/session-progress` |
+| Mentors | assigned mentors (empty state: no mentor assigned yet) | `Mentors` (mentor_id,name,expertise,bio,contact_email), `MentorAssignments` (email,mentor_id,assigned_date) | `GET mentors`, `GET mentor-assignments` |
+| Sessions | cohort sessions, per-student completion + quiz | `CohortSessions` (session_id,date,time,platform,mentor,topic,summary,action_item), `SessionProgress` (email,session_id,completed,quiz_score,completed_date) | `GET dashboard`, `GET/POST /api/session-progress` |
+| Attendance | present ÷ sessions held so far, full list | `Attendance` (email,session_id,date,status; long format) + `CohortSessions` | `GET attendance` |
 | Documents | status per catalogue doc | `Documents` (email,doc_id,status,submitted_date,file_url); catalogue in code | `GET documents` |
 
 Journey stage is computed from the checklist on every read (`getStagesWithStatus`), never stored.
@@ -61,14 +63,15 @@ Journey stage is computed from the checklist on every read (`getStagesWithStatus
 
 "What is missing" is decided in one place (`api/_lib/consulting/missing.js`) so the student and admin ends always agree. Cancelling archives the row (`archived=TRUE`) and removes it from both ends; only admins reschedule.
 
-## Launchpad Abroad (`/hub/launchpad`; staff review in Hub Admin > Launchpad students)
+## Launchpad Abroad (`/hub/launchpad`, mentor view `/launchpad/mentor`; admin review in Hub Admin > Launchpad students)
 
 | Page | Data | Tab (columns) | Endpoint |
 |---|---|---|---|
 | Overview, My Journey | phase rail, checklist, sign-off | `LP_Checklist` (email,item_id,checked,checked_date), `LP_Signoff` (email,profile_ready,signed_by,date); phases in code | `GET launchpad`, `POST launchpad/checklist` |
-| Profile | about, startup, activities, awards, proof | `LP_Students` (email,name,grade,school,guardian_*), `LP_Profile` (email,section,field,value) | `POST launchpad/profile` |
-| Sessions | upcoming / past, MoM / deliverables / tasks | `LP_Sessions` (session_id,email,date,time,status,mom,deliverables,tasks) | `POST launchpad/sessions` |
+| Profile | about, startup, activities, awards, proof | `LP_Students` (email,name,grade,school,guardian_*,mentor_id), `LP_Profile` (email,section,field,value) | `POST launchpad/profile` |
+| Sessions | upcoming / past, MoM / deliverables / tasks | `LP_Sessions` (session_id,email,mentor_id,date,time,status,mom,deliverables,tasks), `LP_Mentors` | `POST launchpad/sessions` |
 | Documents | submit links | `LP_Documents` (email,doc_id,status,submitted_date,link) | `POST launchpad/documents` |
+| Mentor view: the mentor's students (login = `LP_Mentors.contact_email`) | phase, profile %, sign-off, documents waiting | all `LP_*` | `GET launchpad/mentor[/student]`, `POST launchpad/mentor/{feedback,schedule,verify,signoff}` |
 | Hub Admin > Launchpad students | phase, profile %, sign-off, documents waiting; feedback, schedule, verify, sign off | all `LP_*` | `GET admin/launchpad[/student]`, `POST admin/launchpad/{feedback,schedule,verify,signoff}` (admin only) |
 
 No Target Universities page exists.
@@ -91,10 +94,10 @@ Media & PR, Resources, Exit Status and the quarterly compliance checklist are go
 | Page | Data | Tab (columns) | Endpoint |
 |---|---|---|---|
 | Overview, Course | learner, course, next class / assignment | `VAC_Learners` (email,name,roll_no,program,semester,course,batch,faculty) | `GET vac` |
-| Schedule | class sessions, held vs to go | `VAC_Sessions` (session_id,date,time,title,course,batch) | `GET vac` |
+| Schedule, Attendance | sessions, present ÷ held | `VAC_Sessions` (session_id,date,time,title,course,batch), `VAC_Attendance` (email,session_id,status) | `GET vac` |
 | Content | per-course material | `VAC_Content` (course,title,format,status,link) | `GET vac` |
 | Assignments | submit link | `VAC_Assignments` (assignment_id,email,title,due,status,link) | `POST vac/assignments` |
-| Certificate | eligible = all assignments in (computed) | derived | `GET vac` |
+| Certificate | eligible = attendance ≥ 75% and all assignments in (computed) | derived | `GET vac` |
 | Feedback | rating + comment per area | `VAC_Feedback` (email,area,rating,comment,submitted_date) | `POST vac/feedback` |
 
 ## Hub Admin (`/hub/admin`), computed from the tabs above, nothing stored
@@ -102,10 +105,11 @@ Media & PR, Resources, Exit Status and the quarterly compliance checklist are go
 | Page | Data | Endpoint |
 |---|---|---|
 | Master Dashboard | members, pending approvals (approve / reject inline), at-risk count, sessions this week, missing items, MoU renewals due, funding received, membership by workspace, top flags, MoU renewals | `GET admin/overview` |
-| At-Risk Flags | missing MoM / deliverables / tasks, overdue tasks, no recent session, overdue assignments, MoU renewal within 60 days or overdue, no MoU, KPI update due, Launchpad stalled > 30 days, documents awaiting verification | `GET admin/at-risk` |
-| Workload | consulting desk, Startup Junction cohort, Launchpad team, VAC faculty: students, next 7 days, pending, overdue | `GET admin/workload` |
+| At-Risk Flags | missing MoM / deliverables / tasks, overdue tasks, no recent session, attendance < 75% (Startup, VAC), overdue assignments, MoU renewal within 60 days or overdue, no MoU, KPI update due, Launchpad stalled > 30 days, documents awaiting verification | `GET admin/at-risk` |
+| Workload | consulting desk, Startup mentors, Launchpad mentors, VAC faculty: students, next 7 days, pending, overdue | `GET admin/workload` |
 | Reports | six tables (membership, consulting, startup, launchpad, incubation, vac) with CSV download | `GET admin/reports` |
 | User Management | every user across tabs, workspace access per user, add user, change access, reset password | `GET admin/users`, `POST admin/users`, `POST admin/users/update` (Students tab; a Consultees row for new consulting users) |
+| Attendance | pick a cohort session, mark each real founder present / absent (mark all present, edit past sessions), saved to `Attendance` | `GET admin/attendance[?session=]`, `POST admin/attendance` (admin only; demo accounts never listed) |
 | Launchpad students | every real Launchpad student: phase, profile %, documents waiting; feedback, schedule, verify, sign off | `GET admin/launchpad[/student]`, `POST admin/launchpad/{feedback,schedule,verify,signoff}` |
 
 ## Kept in code on purpose (definitions, not data)

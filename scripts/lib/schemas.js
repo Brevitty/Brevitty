@@ -14,8 +14,11 @@ export const STUDENTS_TAB = process.env.GOOGLE_SHEET_TAB?.trim() || 'Students'
 const STARTUP_TABS = {
   [STUDENTS_TAB]: ['email', 'password', 'name', 'memberships'],
   ChecklistStatus: ['email', 'item_id', 'checked', 'checked_date'],
+  Attendance: ['email', 'session_id', 'date', 'status'], // long format: one row per student per session
   Documents: ['email', 'doc_id', 'status', 'submitted_date', 'file_url'],
   SessionProgress: ['email', 'session_id', 'completed', 'quiz_score', 'completed_date'],
+  Mentors: ['mentor_id', 'name', 'expertise', 'bio', 'contact_email'],
+  MentorAssignments: ['email', 'mentor_id', 'assigned_date'],
 }
 
 export const ALL_SCHEMAS = {

@@ -9,7 +9,7 @@ import { sheetsRequest } from '../api/_lib/sheetsClient.js'
 import { ALL_SCHEMAS, STUDENTS_TAB } from './lib/schemas.js'
 
 const APPLY = process.argv.includes('--apply')
-const RETIRED = new Set(['Attendance', 'Mentors', 'MentorAssignments', 'LP_Mentors', 'VAC_Attendance'])
+const RETIRED = new Set() // Mentors and Attendance are active again; nothing is retired right now
 const NEVER_DELETE = new Set([STUDENTS_TAB, 'Admins'])
 const RENAMED_FROM = new Set(['MentorSessions']) // becomes CohortSessions via setup-sheets.js; never delete it
 const q = (t) => encodeURIComponent(`'${t.replace(/'/g, "''")}'`)
