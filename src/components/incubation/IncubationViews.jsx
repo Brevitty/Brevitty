@@ -1,48 +1,45 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { AttendanceMeter } from '../junction/dashboard/shared.jsx'
-import { KPI_METRICS, formatINR, formatKpi } from '../../data/incubationRules.js'
+import { KPI_METRICS, SCHEME_STATUSES, STARTUP_STAGES, docStatus, formatINR, formatKpi } from '../../data/incubationRules.js'
+import { saveKpis, saveProfile, setSchemeStatus } from '../../lib/db.ts'
 import { formatDate } from '../../lib/hubApi.js'
 import {
-  Page, ViewHeader, StatGrid, StatTile, Card, CardHead, ListRow, DataTable, Pill, LinkOut, Field, SaveNote, EmptyNote,
-  inputClass, primaryButton, ghostButton, viewItem,
+  Page, ViewHeader, StatGrid, StatTile, Card, CardHead, ListRow, DataTable, Pill, LinkOut, Field, EmptyNote,
+  inputClass, primaryButton, labelClass, viewItem,
 } from '../hub/ui.jsx'
 
 const KPI_RECENT_QUARTERS = 4
-const DOC_TYPES = ['Legal', 'Governance', 'Agreement', 'Finance', 'IP', 'Other']
-
-const kpi = (data, id) => data.kpis.find((k) => k.id === id)
+export const KPI_EMPTY = 'No KPIs reported yet. Add your first quarter below.'
 
 /* ---------------- Overview ---------------- */
 export function OverviewView({ data, navigate }) {
-  const s = data.startup
-  const revenue = kpi(data, 'revenue')
+  const mou = data.documents.find((d) => d.kind === 'mou')
+  const latestPeriod = data.quarters.at(-1)?.period
   return (
     <Page>
-      <ViewHeader eyebrow="Incubation" title={s.startup} subtitle={`Stage: ${s.stage} · Incubation status: ${s.exit_status || 'Active'}`} />
+      <ViewHeader eyebrow="Incubation" title={data.startup.startup} subtitle="Your incubation workspace, as you’ve reported it." />
       <StatGrid>
-        <StatTile n={1} label="Runway" value={formatKpi('months', s.runway_months)} sub={kpi(data, 'runway').trend || 'Current'} />
-        <StatTile n={2} label="Revenue" value={formatINR(s.revenue)} sub={revenue.period ? `Latest quarter · ${revenue.period}` : 'Latest quarter'} />
-        <StatTile n={3} label="Capital facilitated" value={formatINR(s.capital_facilitated)} sub="Hub-introduced" />
-        <StatTile n={4} label="Compliance" value={formatKpi('pct', s.compliance_pct)} sub={s.compliance_pct >= 90 ? 'On track' : 'Needs attention'} />
+        <StatTile n={1} label="MoU" value={docStatus(mou)} sub={mou ? `Renewal · ${formatDate(mou.renewal_date)}` : 'Upload your signed MoU'} />
+        <StatTile n={2} label="Documents" value={String(data.documents.length)} sub={data.documents.length ? 'On record' : 'None uploaded yet'} />
+        <StatTile n={3} label="Funding received" value={data.funding.length ? formatINR(data.fundingReceived) : '—'} sub={data.funding.length ? `${data.funding.length} record${data.funding.length === 1 ? '' : 's'}` : 'No funding recorded yet'} />
+        <StatTile n={4} label="Latest KPIs" value={latestPeriod || '—'} sub={latestPeriod ? 'Most recent quarter reported' : 'No KPIs reported yet'} />
       </StatGrid>
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>
-          <CardHead n={1} title="Current incubation focus" />
+          <CardHead n={1} title="Latest KPIs" action={<button type="button" onClick={() => navigate('kpis')} className="text-xs font-semibold text-black/45 hover:text-orange">KPIs →</button>} />
           <div className="mt-3">
-            <ListRow label="Stage" value={s.stage} />
-            <ListRow label="MoU renewal" value={formatDate(s.mou_renewal)} />
-            <ListRow label="Jobs created" value={String(s.jobs_created ?? '—')} />
+            {!latestPeriod && <p className="py-3 text-sm text-black/55">No KPIs reported yet.</p>}
+            {latestPeriod && data.kpis.map((k) => <ListRow key={k.id} label={k.label} value={k.current === null ? '—' : formatKpi(k.unit, k.current)} />)}
           </div>
         </Card>
         <Card>
-          <CardHead n={2} title="Next actions" action={<button type="button" onClick={() => navigate('kpis')} className="text-xs font-semibold text-black/45 hover:text-orange">KPIs →</button>} />
+          <CardHead n={2} title="Next actions" />
           <div className="mt-3">
             {!data.nextActions.length && <p className="py-3 text-sm text-black/55">Nothing due. You’re all caught up.</p>}
             {data.nextActions.map((a) => (
               <div key={a.label} className="flex items-center justify-between gap-4 border-b border-black/[0.06] py-3 last:border-0">
                 <span className="text-sm text-black/65">{a.label}</span>
-                {a.date ? <span className="font-mono text-xs font-semibold text-ink">{formatDate(a.date)}</span> : <Pill>{a.status}</Pill>}
+                <Pill>{a.status}</Pill>
               </div>
             ))}
           </div>
@@ -52,31 +49,61 @@ export function OverviewView({ data, navigate }) {
   )
 }
 
-/* ---------------- MoU & Compliance ---------------- */
-export function ComplianceView({ data }) {
+/* ---------------- Profile ---------------- */
+const PROFILE_FIELDS = ['startup', 'founder_name', 'sector', 'stage', 'website']
+
+// Also the first screen for a newly approved founder: saving it creates their incubation record.
+export function ProfileView({ data, run }) {
+  const isNew = !data.startup
+  const [form, setForm] = useState(() => Object.fromEntries(PROFILE_FIELDS.map((f) => [f, data.startup?.[f] || ''])))
+  const [saving, setSaving] = useState(false)
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  async function submit(e) {
+    e.preventDefault()
+    setSaving(true)
+    await run(() => saveProfile(form), isNew ? 'Your incubation workspace is ready.' : 'Profile saved.')
+    setSaving(false)
+  }
   return (
     <Page>
-      <ViewHeader eyebrow="MoU & Compliance" title={`Compliance at ${formatKpi('pct', data.startup.compliance_pct)}.`} subtitle="Core incubation agreement and compliance records." />
-      <motion.div variants={viewItem}>
-        <AttendanceMeter presentCount={data.startup.compliance_pct ?? 0} heldCount={100} caption="Quarterly compliance checklist" />
-      </motion.div>
-      <div className="mt-10">
-        <DataTable
-          rowKey={(r) => r.item}
-          rows={data.compliance}
-          columns={[
-            { key: 'item', label: 'Item', width: '1.4fr' },
-            { key: 'status', label: 'Status', width: '160px', render: (r) => <Pill>{r.status}</Pill> },
-            { key: 'review', label: 'Review / date', width: '1fr', render: (r) => [r.note, r.review_date && formatDate(r.review_date)].filter(Boolean).join(' · ') || '—' },
-          ]}
-          empty="No compliance records yet."
-        />
-      </div>
+      <ViewHeader
+        eyebrow={isNew ? 'Welcome to Incubation' : 'Profile'}
+        title={isNew ? 'Set up your startup.' : 'Your startup details.'}
+        subtitle={isNew ? 'Start with your startup’s name. Documents, KPIs, funding and schemes open as soon as you save.' : 'Only you and the Hub team see these details.'}
+      />
+      <motion.form variants={viewItem} onSubmit={submit} className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field label="Startup name" htmlFor="pf-startup">
+          <input id="pf-startup" required maxLength={120} value={form.startup} onChange={set('startup')} disabled={saving} className={inputClass} />
+        </Field>
+        <Field label="Founder name" htmlFor="pf-founder">
+          <input id="pf-founder" maxLength={120} value={form.founder_name} onChange={set('founder_name')} disabled={saving} className={inputClass} />
+        </Field>
+        <Field label="Sector" htmlFor="pf-sector">
+          <input id="pf-sector" maxLength={80} value={form.sector} onChange={set('sector')} disabled={saving} className={inputClass} />
+        </Field>
+        <Field label="Stage" htmlFor="pf-stage">
+          <select id="pf-stage" value={form.stage} onChange={set('stage')} disabled={saving} className={inputClass}>
+            <option value="">Select stage</option>
+            {STARTUP_STAGES.map((s) => (
+              <option key={s}>{s}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Website" htmlFor="pf-website">
+          <input id="pf-website" type="url" placeholder="https://" value={form.website} onChange={set('website')} disabled={saving} className={inputClass} />
+        </Field>
+        <div className="sm:col-span-2">
+          <button type="submit" disabled={saving} className={primaryButton}>
+            {saving ? 'Saving…' : isNew ? 'Create my workspace' : 'Save profile'}
+          </button>
+        </div>
+      </motion.form>
     </Page>
   )
 }
 
 /* ---------------- KPIs ---------------- */
+// "Q3 2026" and the KPI_RECENT_QUARTERS - 1 before it.
 function recentQuarters(thisQuarter) {
   let q = Number(thisQuarter[1])
   let y = Number(thisQuarter.slice(3))
@@ -92,282 +119,146 @@ function recentQuarters(thisQuarter) {
   return out
 }
 
-function KpiForm({ data, save }) {
+const blankValues = () => Object.fromEntries(KPI_METRICS.map((m) => [m.id, '']))
+
+function KpiForm({ data, run }) {
   const [period, setPeriod] = useState(data.thisQuarter)
-  const [values, setValues] = useState(() => Object.fromEntries(KPI_METRICS.map((m) => [m.id, ''])))
-  const [state, setState] = useState(null)
+  const [values, setValues] = useState(blankValues)
+  const [saving, setSaving] = useState(false)
+  const existing = data.quarters.find((q) => q.period === period)
   const filled = KPI_METRICS.filter((m) => values[m.id] !== '')
 
   async function submit(e) {
     e.preventDefault()
-    setState({ saving: true })
-    try {
-      await save('incubation/kpis', { period, values: Object.fromEntries(filled.map((m) => [m.id, Number(values[m.id])])) }, (_, res) => res)
-      setValues(Object.fromEntries(KPI_METRICS.map((m) => [m.id, ''])))
-      setState({ saved: true })
-    } catch (err) {
-      setState({ error: err.message })
-    }
+    setSaving(true)
+    const res = await run(() => saveKpis({ period, values }), `${period} KPIs saved.`)
+    setSaving(false)
+    if (res) setValues(blankValues())
   }
 
   return (
     <motion.form variants={viewItem} onSubmit={submit} className="mt-8 rounded-2xl border border-orange/30 bg-orange/[0.04] p-6">
       <CardHead title="Update quarterly KPIs" />
-      <p className="mt-2 text-sm text-black/55">Leave a field blank to keep it as is. Saving also refreshes your Overview tiles.</p>
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <p className="mt-2 text-sm text-black/55">
+        {existing ? `${period} is already reported. Leave a field blank to keep it as is.` : 'Enter all three values for the quarter.'} Saving also refreshes your Overview.
+      </p>
+      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Quarter" htmlFor="kpi-period">
-          <select id="kpi-period" value={period} onChange={(e) => setPeriod(e.target.value)} className={inputClass}>
+          <select id="kpi-period" value={period} onChange={(e) => setPeriod(e.target.value)} disabled={saving} className={inputClass}>
             {recentQuarters(data.thisQuarter).map((q) => (
               <option key={q}>{q}</option>
             ))}
           </select>
         </Field>
         {KPI_METRICS.map((m) => (
-          <Field key={m.id} label={`${m.label}${m.unit === 'inr' ? ' (₹)' : m.unit === 'months' ? ' (months)' : m.unit === 'pct' ? ' (%)' : ''}`} htmlFor={`kpi-${m.id}`}>
+          <Field key={m.id} label={m.label} htmlFor={`kpi-${m.id}`}>
             <input
               id={`kpi-${m.id}`}
               type="number"
               inputMode="decimal"
+              required={existing?.[m.id] == null}
               min="0"
               max={m.max}
-              step={m.unit === 'months' ? '0.1' : '1'}
-              placeholder={kpi(data, m.id).current ?? ''}
+              step={m.integer ? '1' : 'any'}
+              placeholder={existing?.[m.id] ?? ''}
               value={values[m.id]}
-              onChange={(e) => {
-                setValues((v) => ({ ...v, [m.id]: e.target.value }))
-                setState(null)
-              }}
+              disabled={saving}
+              onChange={(e) => setValues((v) => ({ ...v, [m.id]: e.target.value }))}
               className={inputClass}
             />
           </Field>
         ))}
       </div>
-      <div className="mt-5 flex flex-wrap items-center gap-4">
-        <button type="submit" disabled={!filled.length || state?.saving} className={primaryButton}>
-          Save {period} KPIs
+      <div className="mt-5">
+        <button type="submit" disabled={saving || (existing && !filled.length)} className={primaryButton}>
+          {saving ? 'Saving…' : `Save ${period} KPIs`}
         </button>
-        <SaveNote state={state} />
       </div>
     </motion.form>
   )
 }
 
-export function KpisView({ data, save }) {
+export function KpisView({ data, run }) {
   return (
     <Page>
       <ViewHeader eyebrow="KPIs" title="Current operating indicators." subtitle="Report each quarter here; the Hub team reviews them at your quarterly advisory." />
       <div className="mt-10">
-        <DataTable
-          rowKey={(r) => r.id}
-          rows={data.kpis}
-          columns={[
-            { key: 'label', label: 'Metric', width: '1fr' },
-            { key: 'current', label: 'Current', width: '140px', render: (r) => <span className="font-mono font-semibold">{formatKpi(r.unit, r.current ?? NaN)}</span> },
-            { key: 'trend', label: 'Trend', width: '130px', render: (r) => (r.trend ? <Pill>{r.trend}</Pill> : '—') },
-            {
-              key: 'history',
-              label: 'History',
-              width: '1.4fr',
-              render: (r) => <span className="font-mono text-xs text-black/55">{r.history.map((h) => `${h.period}: ${formatKpi(r.unit, h.value ?? NaN)}`).join('  →  ') || '—'}</span>,
-            },
-          ]}
-        />
+        {!data.quarters.length ? (
+          <EmptyNote>{KPI_EMPTY}</EmptyNote>
+        ) : (
+          <DataTable
+            rowKey={(r) => r.id}
+            rows={data.kpis}
+            columns={[
+              { key: 'label', label: 'Metric', width: '1fr' },
+              { key: 'current', label: 'Current', width: '140px', render: (r) => <span className="font-mono font-semibold">{formatKpi(r.unit, r.current ?? NaN)}</span> },
+              { key: 'trend', label: 'Trend', width: '130px', render: (r) => (r.trend ? <Pill>{r.trend}</Pill> : '—') },
+              {
+                key: 'history',
+                label: 'History',
+                width: '1.4fr',
+                render: (r) => <span className="font-mono text-xs text-black/55">{r.history.map((h) => `${h.period}: ${formatKpi(r.unit, h.value)}`).join('  →  ') || '—'}</span>,
+              },
+            ]}
+          />
+        )}
       </div>
-      <KpiForm data={data} save={save} />
+      <KpiForm data={data} run={run} />
     </Page>
   )
 }
 
-/* ---------------- Funding ---------------- */
-export function FundingView({ data }) {
-  const total = data.funding.reduce((sum, f) => sum + (f.amount || 0), 0)
-  return (
-    <Page>
-      <ViewHeader eyebrow="Funding" title={`${formatINR(total)} in the pipeline.`} subtitle="Funding opportunities and introductions managed through the Hub." />
-      <div className="mt-10">
-        <DataTable
-          rowKey={(r) => r.source}
-          rows={data.funding}
-          columns={[
-            { key: 'source', label: 'Investor / source', width: '1.4fr' },
-            { key: 'stage', label: 'Stage', width: '1fr' },
-            { key: 'amount', label: 'Amount', width: '120px', render: (r) => <span className="font-mono font-semibold">{formatINR(r.amount)}</span> },
-            { key: 'status', label: 'Status', width: '150px', render: (r) => <Pill>{r.status}</Pill> },
-          ]}
-          empty="No funding conversations yet."
-        />
-      </div>
-    </Page>
-  )
-}
-
-/* ---------------- Documents ---------------- */
-function UploadForm({ save, onClose }) {
-  const [form, setForm] = useState({ doc: '', type: DOC_TYPES[0], link: '' })
-  const [state, setState] = useState(null)
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
-  async function submit(e) {
-    e.preventDefault()
-    setState({ saving: true })
-    try {
-      await save('incubation/documents', form, (d, r) => ({
-        ...d,
-        documents: [...d.documents.filter((x) => x.doc.toLowerCase() !== r.doc.toLowerCase()), r],
-      }))
-      onClose()
-    } catch (err) {
-      setState({ error: err.message })
-    }
+/* ---------------- Schemes (team-curated, read-only; the startup only tracks its own status) ---------------- */
+export function SchemesView({ data, run }) {
+  const [busy, setBusy] = useState('')
+  async function change(scheme, status) {
+    setBusy(scheme.id)
+    await run(() => setSchemeStatus(scheme.id, status), `${scheme.name}: marked ${status}.`)
+    setBusy('')
   }
   return (
-    <motion.form variants={viewItem} initial="hidden" animate="show" onSubmit={submit} className="mt-8 rounded-2xl border border-orange/30 bg-orange/[0.04] p-6">
-      <CardHead title="Upload document" />
-      <p className="mt-2 text-sm text-black/55">Share it as a link (Google Drive, Docs, or any https URL).</p>
-      <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_160px_1.5fr]">
-        <Field label="Document" htmlFor="inc-doc">
-          <input id="inc-doc" required maxLength={120} value={form.doc} onChange={set('doc')} className={inputClass} placeholder="e.g. Board resolution" />
-        </Field>
-        <Field label="Type" htmlFor="inc-type">
-          <select id="inc-type" value={form.type} onChange={set('type')} className={inputClass}>
-            {DOC_TYPES.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Link" htmlFor="inc-link">
-          <input id="inc-link" type="url" required maxLength={2000} value={form.link} onChange={set('link')} className={inputClass} placeholder="https://" />
-        </Field>
-      </div>
-      <div className="mt-5 flex flex-wrap items-center gap-3">
-        <button type="submit" disabled={state?.saving} className={primaryButton}>
-          Submit document
-        </button>
-        <button type="button" onClick={onClose} className={ghostButton}>
-          Cancel
-        </button>
-        <SaveNote state={state} />
-      </div>
-    </motion.form>
-  )
-}
-
-export function DocumentsView({ data, save }) {
-  const [uploading, setUploading] = useState(false)
-  return (
     <Page>
-      <ViewHeader
-        eyebrow="Documents"
-        title={`${data.documents.length} documents on record.`}
-        subtitle="Submitted incubation documents and current records. Read-only items are managed by the Hub."
-        action={
-          !uploading && (
-            <button type="button" onClick={() => setUploading(true)} className={primaryButton}>
-              Upload document
-            </button>
-          )
-        }
-      />
-      {uploading && <UploadForm save={save} onClose={() => setUploading(false)} />}
-      <div className="mt-10">
-        <DataTable
-          rowKey={(r) => r.doc}
-          rows={data.documents}
-          columns={[
-            { key: 'doc', label: 'Document', width: '1.4fr' },
-            { key: 'type', label: 'Type', width: '1fr' },
-            { key: 'status', label: 'Status', width: '140px', render: (r) => <Pill>{r.status}</Pill> },
-            { key: 'link', label: 'Link', width: '90px', render: (r) => <LinkOut href={r.link}>View</LinkOut> },
-          ]}
-          empty="No documents yet. Use Upload document to add one."
-        />
+      <ViewHeader eyebrow="Schemes" title="Government & ecosystem schemes." subtitle="Schemes the Hub team has listed for startups like yours. Track where you stand on each." />
+      <div className="mt-10 flex flex-col gap-4">
+        {!data.schemes.length && <EmptyNote>No schemes listed yet. The Hub team will add relevant ones.</EmptyNote>}
+        {data.schemes.map((s, i) => (
+          <Card key={s.id}>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className={labelClass}>
+                  <span className="mr-2 text-black/30">[{String(i + 1).padStart(2, '0')}]</span>
+                  {s.authority || 'Scheme'}
+                </p>
+                <h3 className="mt-2 font-display text-lg font-bold text-ink">{s.name}</h3>
+                {s.description && <p className="mt-1 max-w-2xl text-sm leading-relaxed text-black/60">{s.description}</p>}
+              </div>
+              <div className="flex shrink-0 flex-col items-start gap-1.5 sm:items-end">
+                <label htmlFor={`scheme-${s.id}`} className={labelClass}>
+                  Your status
+                </label>
+                <select id={`scheme-${s.id}`} value={s.my_status} disabled={busy === s.id} onChange={(e) => change(s, e.target.value)} className={`${inputClass} sm:w-44`}>
+                  <option value="" disabled>
+                    Set status
+                  </option>
+                  {SCHEME_STATUSES.map((st) => (
+                    <option key={st}>{st}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="mt-3">
+              <ListRow label="Eligibility" value={s.eligibility} />
+              <ListRow label="Max benefit" value={s.max_benefit} />
+              <ListRow label="Deadline" value={s.deadline ? formatDate(s.deadline) : ''} />
+            </div>
+            {s.apply_url && (
+              <p className="mt-3 text-sm">
+                <LinkOut href={s.apply_url}>Apply / Learn more</LinkOut>
+              </p>
+            )}
+          </Card>
+        ))}
       </div>
-    </Page>
-  )
-}
-
-/* ---------------- Schemes / Media & PR / Resources ---------------- */
-function SimpleTable({ eyebrow, title, subtitle, rows, columns, rowKey, empty }) {
-  return (
-    <Page>
-      <ViewHeader eyebrow={eyebrow} title={title} subtitle={subtitle} />
-      <div className="mt-10">
-        <DataTable rows={rows} columns={columns} rowKey={rowKey} empty={empty} />
-      </div>
-    </Page>
-  )
-}
-
-export function SchemesView({ data }) {
-  return (
-    <SimpleTable
-      eyebrow="Schemes"
-      title="Government & ecosystem schemes."
-      subtitle="Schemes relevant to your startup and where each one stands."
-      rows={data.schemes}
-      rowKey={(r) => r.scheme}
-      empty="No schemes mapped yet."
-      columns={[
-        { key: 'scheme', label: 'Scheme', width: '1.3fr' },
-        { key: 'relevance', label: 'Relevance', width: '1fr' },
-        { key: 'status', label: 'Status', width: '140px', render: (r) => <Pill>{r.status}</Pill> },
-      ]}
-    />
-  )
-}
-
-export function MediaView({ data }) {
-  return (
-    <SimpleTable
-      eyebrow="Media & PR"
-      title="Your story, in public."
-      subtitle="Approved media, announcements and founder-story assets."
-      rows={data.media}
-      rowKey={(r) => r.asset}
-      empty="No media assets yet."
-      columns={[
-        { key: 'asset', label: 'Asset', width: '1.3fr' },
-        { key: 'type', label: 'Type', width: '1fr' },
-        { key: 'status', label: 'Status', width: '140px', render: (r) => <Pill>{r.status}</Pill> },
-      ]}
-    />
-  )
-}
-
-export function ResourcesView({ data }) {
-  return (
-    <SimpleTable
-      eyebrow="Resources"
-      title="Hub resources for incubated startups."
-      subtitle="Templates and guides from the Brevitty team."
-      rows={data.resources}
-      rowKey={(r) => r.resource}
-      empty="No resources published yet."
-      columns={[
-        { key: 'resource', label: 'Resource', width: '1.4fr' },
-        { key: 'format', label: 'Format', width: '100px', render: (r) => <span className="font-mono text-xs">{r.format}</span> },
-        { key: 'use', label: 'Use', width: '1fr' },
-        { key: 'link', label: 'Link', width: '110px', render: (r) => (r.link ? <LinkOut href={r.link} /> : <span className="text-xs text-black/40">Ask the Hub</span>) },
-      ]}
-    />
-  )
-}
-
-/* ---------------- Exit Status ---------------- */
-export function ExitView({ data }) {
-  const s = data.startup
-  return (
-    <Page>
-      <ViewHeader eyebrow="Exit Status" title={`Incubation status: ${s.exit_status || 'Active'}.`} subtitle="Current incubation status and transition planning." />
-      <Card className="mt-10">
-        <CardHead title="Indicators" />
-        <div className="mt-3">
-          <ListRow label="Incubation status" value={s.exit_status} />
-          <ListRow label="Exit review" value={s.exit_review} />
-          <ListRow label="Transition plan" value={s.transition_plan} />
-          <ListRow label="MoU renewal" value={formatDate(s.mou_renewal)} />
-        </div>
-      </Card>
-      {!s.exit_review && <EmptyNote>No exit review scheduled.</EmptyNote>}
     </Page>
   )
 }

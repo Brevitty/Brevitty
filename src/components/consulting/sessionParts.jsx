@@ -2,6 +2,9 @@
 import { StatusPill, labelClass, Spinner, ORANGE_TEXT } from './ui.jsx'
 import { CheckIcon } from '../junction/dashboard/icons.jsx'
 import { fmtMonth, fmtDayNum, fmtDate, fmtRange, istToday } from '../../lib/consultingTime.js'
+import { FileLink } from '../hub/FileUpload.jsx'
+
+const fileLinkClass = `font-mono text-[11px] underline decoration-orange/40 underline-offset-2 hover:decoration-orange ${ORANGE_TEXT}`
 
 // Tear-off style date stub: "05 / OCT".
 export function DateBlock({ date, dark = false, size = 'md' }) {
@@ -34,9 +37,9 @@ export function MomBlock({ mom, link }) {
     <div className="relative border-l-2 border-orange pl-4">
       <p className="whitespace-pre-line text-sm leading-relaxed text-black/75">{mom}</p>
       {link && (
-        <a href={link} target="_blank" rel="noopener noreferrer" className={`mt-2 block break-all font-mono text-[11px] underline decoration-orange/40 underline-offset-2 ${ORANGE_TEXT}`}>
-          {link.replace(/^https?:\/\//, '')}
-        </a>
+        <p className="mt-2">
+          <FileLink stored={link} className={fileLinkClass} />
+        </p>
       )}
     </div>
   )
@@ -95,16 +98,11 @@ export function DeliverableRow({ d, action }) {
       <div className="min-w-0">
         <p className="text-sm font-medium text-ink">{d.title}</p>
         {d.link ? (
-          <a
-            href={d.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`mt-0.5 block max-w-[34ch] truncate font-mono text-[11px] underline decoration-orange/40 underline-offset-2 hover:decoration-orange sm:max-w-[48ch] ${ORANGE_TEXT}`}
-          >
-            {d.link.replace(/^https?:\/\//, '')}
-          </a>
+          <p className="mt-0.5">
+            <FileLink stored={d.link} className={fileLinkClass} />
+          </p>
         ) : (
-          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-black/40">No link yet</p>
+          <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.12em] text-black/40">No file yet</p>
         )}
         {d.note && <p className="mt-1 text-xs text-black/55">Note: {d.note}</p>}
       </div>

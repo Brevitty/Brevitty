@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Page, PageHeader, Button, EmptyState, Loaded, SearchInput, viewItem, labelClass, pad2 } from '../ui.jsx'
 import { ChevronRightIcon } from '../../junction/dashboard/icons.jsx'
@@ -8,6 +8,8 @@ import { admin } from '../../../lib/consultingApi.js'
 import { fmtDate } from '../../../lib/consultingTime.js'
 import AddConsulteeForm from './AddConsulteeForm.jsx'
 import { paths } from './paths.js'
+
+const COLUMNS = ['Name', 'Department', 'Course', 'Sem', 'Official email', 'Startup', 'Phone', 'Sessions', 'Last session']
 
 function ConsulteeRow({ c, index }) {
   const academic = [c.department, c.course, c.sem && `Sem ${c.sem}`].filter(Boolean).join(' · ')
@@ -39,6 +41,7 @@ function ConsulteeRow({ c, index }) {
 
 export default function ConsulteesView() {
   const load = useLoad(admin.consultees, [])
+  const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
   const [q, setQ] = useState('')
   const adding = params.get('new') === '1'
@@ -55,12 +58,12 @@ export default function ConsulteesView() {
           <Page>
             <PageHeader
               n={2}
-              eyebrow="Consultees"
+              eyebrow="Students"
               title="Your students"
               subtitle="Everyone you consult. Open a profile for their full timeline."
               action={
                 !adding && (
-                  <Button onClick={() => setAdding(true)}>+ Add consultee</Button>
+                  <Button onClick={() => setAdding(true)}>+ Add student</Button>
                 )
               }
             />
@@ -68,7 +71,7 @@ export default function ConsulteesView() {
 
             <motion.div variants={viewItem} className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="sm:w-80">
-                <SearchInput value={q} onChange={setQ} placeholder="Search name, email, startup" />
+                <SearchInput value={q} onChange={setQ} placeholder="Search name, email, startup, phone" />
               </div>
               <span className={labelClass}>
                 {shown.length} of {consultees.length}
@@ -77,17 +80,51 @@ export default function ConsulteesView() {
 
             <motion.div variants={viewItem} className="mt-4">
               {shown.length ? (
-                <div className="overflow-hidden rounded-2xl border border-black/10 bg-white">
-                  {shown.map((c, i) => (
-                    <ConsulteeRow key={c.email} c={c} index={i} />
-                  ))}
-                </div>
+                <>
+                  <div className="overflow-hidden rounded-2xl border border-black/10 bg-white md:hidden">
+                    {shown.map((c, i) => (
+                      <ConsulteeRow key={c.email} c={c} index={i} />
+                    ))}
+                  </div>
+                  <div className="hidden overflow-x-auto rounded-2xl border border-black/10 bg-white md:block">
+                    <table className="w-full min-w-[960px] text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-black/10">
+                          {COLUMNS.map((h) => (
+                            <th key={h} scope="col" className={`${labelClass} px-4 py-3`}>
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {shown.map((c) => (
+                          <tr key={c.email} onClick={() => navigate(paths.consultee(c.email))} className="cursor-pointer border-b border-black/[0.06] last:border-0 hover:bg-orange/[0.03]">
+                            <td className="px-4 py-3 font-semibold text-ink">
+                              <Link to={paths.consultee(c.email)} onClick={(e) => e.stopPropagation()} className="hover:underline">
+                                {c.name}
+                              </Link>
+                            </td>
+                            <td className="px-4 py-3 text-black/65">{c.department || '—'}</td>
+                            <td className="px-4 py-3 text-black/65">{c.course || '—'}</td>
+                            <td className="px-4 py-3 font-mono text-black/65">{c.sem || '—'}</td>
+                            <td className="px-4 py-3 text-black/65">{c.email}</td>
+                            <td className="px-4 py-3 text-black/65">{c.startup_name || '—'}</td>
+                            <td className="px-4 py-3 font-mono text-xs text-black/65">{c.phone || '—'}</td>
+                            <td className="px-4 py-3 font-mono font-semibold tabular-nums text-ink">{pad2(c.session_count)}</td>
+                            <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-black/65">{c.last_session_date ? fmtDate(c.last_session_date) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               ) : (
                 <EmptyState
                   mark="00"
-                  title={needle ? 'No matches' : 'No consultees yet'}
+                  title={needle ? 'No matches' : 'No students yet'}
                   body={needle ? 'Try a different name, email or startup.' : 'Add your first student to create their login.'}
-                  action={!needle && !adding && <Button onClick={() => setAdding(true)}>+ Add consultee</Button>}
+                  action={!needle && !adding && <Button onClick={() => setAdding(true)}>+ Add student</Button>}
                 />
               )}
             </motion.div>

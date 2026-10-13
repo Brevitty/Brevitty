@@ -1,13 +1,10 @@
-// ChecklistStatus tab reader/writer. Columns (fixed order, matches
-// scripts/setup-startup-junction-tabs.mjs): email | item_id | checked | checked_date
-import { getCachedTab, cellToString, isChecked, todayISO, upsertRow } from './sheetsClient.js'
+// ChecklistStatus tab reader/writer, by header name: email | item_id | checked | checked_date
+import { todayISO, isChecked } from './sheetsClient.js'
+import { rowsFor, upsert } from './pillarStore.js'
+import { warmStartup } from './dashboardSheet.js'
 import { STAGES } from '../../src/data/journeyData.js'
 
 const TAB = 'ChecklistStatus'
-const EMAIL_COL = 0
-const ITEM_ID_COL = 1
-const CHECKED_COL = 2
-const LAST_COL = 'D'
 
 // Only non-computed deliverables are sheet-backed — revenue-threshold and
 // competition-entry are always derived (ledger total / verified competition),
@@ -20,22 +17,10 @@ export const VALID_ITEM_IDS = new Set(
 // are simply absent (the client treats a missing key as unchecked) — never throws
 // for a student with no rows yet.
 export async function getChecklist(email) {
-  const rows = (await getCachedTab(TAB)).slice(1)
-  const checklist = {}
-  for (const r of rows) {
-    if (cellToString(r[EMAIL_COL]).trim() !== email) continue
-    const itemId = cellToString(r[ITEM_ID_COL]).trim()
-    if (VALID_ITEM_IDS.has(itemId)) checklist[itemId] = isChecked(r[CHECKED_COL])
-  }
-  return checklist
+  await warmStartup()
+  return Object.fromEntries((await rowsFor(TAB, email)).filter((r) => VALID_ITEM_IDS.has(r.item_id)).map((r) => [r.item_id, isChecked(r.checked)]))
 }
 
 export async function setChecklistItem(email, itemId, checked) {
-  await upsertRow(
-    TAB,
-    [EMAIL_COL, ITEM_ID_COL],
-    [email, itemId],
-    () => [email, itemId, checked ? 'TRUE' : 'FALSE', todayISO()],
-    LAST_COL
-  )
+  await upsert(TAB, { email, item_id: itemId }, { checked: checked ? 'TRUE' : 'FALSE', checked_date: todayISO() })
 }

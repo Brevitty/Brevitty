@@ -28,7 +28,7 @@ export function Page({ children }) {
   )
 }
 
-// Same header as Startup Junction's My Journey / Attendance views.
+// Same header as Startup Junction's My Journey view.
 export function ViewHeader({ eyebrow, title, subtitle, action }) {
   return (
     <motion.div variants={viewItem} className="flex flex-wrap items-end justify-between gap-4">
@@ -75,8 +75,10 @@ export function StatTile({ n, label, value, sub }) {
   )
 }
 
-export function StatGrid({ children }) {
-  return <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">{children}</div>
+// cols: 4 (default) or 3 — a 3-tile row spans the full width instead of leaving a hole.
+const STAT_GRID_CLASS = { 3: 'sm:grid-cols-3', 4: 'sm:grid-cols-2 xl:grid-cols-4' }
+export function StatGrid({ children, cols = 4 }) {
+  return <div className={`mt-8 grid grid-cols-1 gap-4 ${STAT_GRID_CLASS[cols]}`}>{children}</div>
 }
 
 export function ListRow({ label, value }) {
@@ -188,10 +190,23 @@ export function SaveNote({ state }) {
   )
 }
 
+// Pulsing placeholder blocks. Same card geometry as the real views, so the page doesn't jump on load.
+export function Skeleton({ className = 'h-24' }) {
+  return <div aria-hidden="true" className={`animate-pulse rounded-2xl bg-black/[0.06] ${className}`} />
+}
+
 export function LoadingView({ label }) {
   return (
-    <div className="p-6 lg:p-10">
+    <div className="p-6 lg:p-10" role="status" aria-live="polite">
       <p className="font-mono text-xs uppercase tracking-[0.14em] text-black/40">{label}</p>
+      <Skeleton className="mt-6 h-10 w-2/3 max-w-md" />
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
+      </div>
+      <Skeleton className="mt-5 h-48" />
     </div>
   )
 }
@@ -205,19 +220,6 @@ export function ErrorView({ message, onRetry }) {
           Try again
         </button>
       )}
-    </div>
-  )
-}
-
-// Shown when the signed-in account is approved for the workspace but has no rows in its tabs yet.
-export function NoRecordView({ workspace }) {
-  return (
-    <div className="p-6 lg:p-10">
-      <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c2410c] dark:text-orange">{workspace}</p>
-      <h2 className="mt-4 font-display text-3xl font-bold tracking-tight text-ink">Your workspace is being set up.</h2>
-      <p className="mt-3 max-w-lg text-sm leading-relaxed text-black/55">
-        The Hub team hasn’t added your {workspace} record yet. Once they do, everything here fills in automatically.
-      </p>
     </div>
   )
 }

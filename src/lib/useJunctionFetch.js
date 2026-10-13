@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
+import { unwrap } from './hubApi.js'
 
-// Same fetch/loading/error/401 shape as AttendanceView's inline effect,
+// Same fetch/loading/error/401 shape as the other dashboard views' effects,
 // extracted so the other Sheets-backed dashboard tabs don't each hand-roll it.
 export function useJunctionFetch(url, onUnauthorized) {
   const [loading, setLoading] = useState(true)
@@ -17,10 +18,12 @@ export function useJunctionFetch(url, onUnauthorized) {
         if (res.status === 401) return onUnauthorized()
         const body = await res.json().catch(() => ({}))
         if (!res.ok) throw new Error(body.error || 'Something went wrong.')
-        if (!cancelled) setData(body)
+        if (!cancelled) setData(unwrap(body))
       })
       .catch((err) => {
-        if (!cancelled) setError(err.message || 'Something went wrong.')
+        // A TypeError here is the network itself (offline, DNS, CORS), not a server message.
+        const message = err instanceof TypeError ? 'Could not reach the server. Check your connection and try again.' : err.message
+        if (!cancelled) setError(message || 'Something went wrong.')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)

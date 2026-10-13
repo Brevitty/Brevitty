@@ -6,6 +6,8 @@ import { DateBlock, SessionMeta, SessionBody } from '../sessionParts.jsx'
 import { useLoad } from '../../../lib/useLoad.js'
 import { admin } from '../../../lib/consultingApi.js'
 import { byDateTime, fmtDate, isUpcoming } from '../../../lib/consultingTime.js'
+import EditConsulteeForm from './EditConsulteeForm.jsx'
+import { Button } from '../ui.jsx'
 import { paths } from './paths.js'
 
 function Profile({ c }) {
@@ -86,6 +88,7 @@ function Timeline({ sessions }) {
 export default function ConsulteeDetailView() {
   const { email } = useParams()
   const load = useLoad(() => admin.consultee(email), [email])
+  const [editing, setEditing] = useState(false)
   return (
     <Loaded load={load}>
       {({ consultee, sessions }) => {
@@ -94,23 +97,56 @@ export default function ConsulteeDetailView() {
           <Page>
             <motion.div variants={viewItem}>
               <Link to={paths.consultees} className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-black/45 hover:text-ink">
-                ← All consultees
+                ← All students
               </Link>
             </motion.div>
             <div className="mt-4">
               <PageHeader
-                eyebrow={consultee.startup_name || 'Consultee'}
+                eyebrow={consultee.startup_name || 'Student'}
                 title={consultee.name}
                 subtitle={`${sessions.length} sessions · ${tasks.filter((t) => t.status === 'open').length} open tasks · ${tasks.filter((t) => t.status === 'done').length} done`}
                 action={
-                  <Link to={paths.schedule(consultee.email)} className="inline-flex min-h-[44px] items-center rounded-full bg-orange px-5 text-sm font-bold text-ink hover:bg-[#fb8a3c]">
-                    + Schedule session
-                  </Link>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="ghost" onClick={() => setEditing((e) => !e)}>
+                      Edit / reset password
+                    </Button>
+                    <Link to={paths.schedule(consultee.email)} className="inline-flex min-h-[44px] items-center rounded-full bg-orange px-5 text-sm font-bold text-ink hover:bg-[#fb8a3c]">
+                      + Schedule session
+                    </Link>
+                  </div>
                 }
               />
             </div>
+            {editing && (
+              <EditConsulteeForm
+                consultee={consultee}
+                onClose={() => setEditing(false)}
+                onSaved={() => {
+                  setEditing(false)
+                  load.reload()
+                }}
+              />
+            )}
             <Profile c={consultee} />
-            <Section n={1} title="Timeline" meta="newest first">
+            <Section n={1} title="Open tasks" meta={`${tasks.filter((t) => t.status === 'open').length} open`}>
+              {tasks.some((t) => t.status === 'open') ? (
+                <Card className="divide-y divide-black/[0.06]">
+                  {sessions.flatMap((s) =>
+                    s.tasks
+                      .filter((t) => t.status === 'open')
+                      .map((t) => (
+                        <Link key={t.task_id} to={paths.session(s.session_id)} className="flex items-start justify-between gap-4 px-5 py-4 hover:bg-black/[0.015]">
+                          <span className="text-sm font-medium text-ink">{t.task}</span>
+                          <span className="shrink-0 font-mono text-[11px] text-black/50">{t.due_date ? `due ${fmtDate(t.due_date)}` : 'no due date'}</span>
+                        </Link>
+                      ))
+                  )}
+                </Card>
+              ) : (
+                <EmptyState mark="OK" title="No open tasks" body="Nothing is waiting on this student." />
+              )}
+            </Section>
+            <Section n={2} title="Sessions" meta="newest first">
               {sessions.length ? (
                 <Timeline sessions={sessions} />
               ) : (

@@ -11,7 +11,7 @@ import tailwindcss from '@tailwindcss/vite'
 // handler to Node's raw req/res (body parsing, res.status/res.json; the Cookie
 // request header and Set-Cookie response header are plain Node and pass through).
 // Does nothing in the build. Handler edits need a dev-server restart (Node caches imports).
-const DISPATCHER_PREFIXES = new Set(['consulting', 'hub'])
+const DISPATCHER_PREFIXES = new Set(['consulting', 'hub', 'files'])
 
 function devApi() {
   return {
@@ -67,7 +67,6 @@ function devApi() {
           const { default: handler } = await import(pathToFileURL(file).href)
           await handler(req, res)
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.error('[dev-api] error', err)
           if (!res.headersSent) send(500, { error: 'Dev API error. See terminal.' })
         }

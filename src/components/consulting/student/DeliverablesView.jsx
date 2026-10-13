@@ -19,8 +19,8 @@ function DeliverableList({ rows, submitDeliverable }) {
 // Every deliverable from every session: "To submit" (pending) and "Submitted" (with the link and note inline).
 export default function DeliverablesView({ sessions, submitDeliverable: submit }) {
   const [banner, setBanner] = useState('')
-  const submitDeliverable = async (d, link, note) => {
-    await submit(d, link, note)
+  const submitDeliverable = async (d, filePath, note) => {
+    await submit(d, filePath, note)
     setBanner(`${d.status === 'pending' ? 'Submitted' : 'Updated'}: ${d.title}`)
   }
   const rows = sessions

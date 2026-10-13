@@ -1,30 +1,30 @@
-import { useState } from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { lazy, Suspense, useState } from 'react'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import ScrollToTop from './components/ScrollToTop.jsx'
 import { ChromeVisibilityProvider } from './context/ChromeVisibilityContext.jsx'
 import HomePage from './pages/HomePage.jsx'
-import AboutPage from './pages/AboutPage.jsx'
-import CommunityPage from './pages/CommunityPage.jsx'
-import EventsPage from './pages/EventsPage.jsx'
-import EventDetailPage from './pages/EventDetailPage.jsx'
-import MentorsPage from './pages/MentorsPage.jsx'
-import MentorProfilePage from './pages/MentorProfilePage.jsx'
-import PartnersPage from './pages/PartnersPage.jsx'
-import GrantsPage from './pages/GrantsPage.jsx'
-import SpacePage from './pages/SpacePage.jsx'
-import StartupJunctionPage from './pages/StartupJunctionPage.jsx'
-import AdminPage from './pages/AdminPage.jsx'
-import ConsultingPage from './pages/ConsultingPage.jsx'
-import SignInPage from './pages/SignInPage.jsx'
-import HubGate from './pages/hub/HubGate.jsx'
-import HubIndexPage from './pages/hub/HubIndexPage.jsx'
-import HubChoosePage from './pages/hub/HubChoosePage.jsx'
-import HubStatusPage from './pages/hub/HubStatusPage.jsx'
-import HubNonePage from './pages/hub/HubNonePage.jsx'
-import WorkspacePage from './pages/hub/WorkspacePage.jsx'
-import LaunchpadMentorPage from './pages/LaunchpadMentorPage.jsx'
+const AboutPage = lazy(() => import('./pages/AboutPage.jsx'))
+const CommunityPage = lazy(() => import('./pages/CommunityPage.jsx'))
+const EventsPage = lazy(() => import('./pages/EventsPage.jsx'))
+const EventDetailPage = lazy(() => import('./pages/EventDetailPage.jsx'))
+const MentorsPage = lazy(() => import('./pages/MentorsPage.jsx'))
+const MentorProfilePage = lazy(() => import('./pages/MentorProfilePage.jsx'))
+const PartnersPage = lazy(() => import('./pages/PartnersPage.jsx'))
+const GrantsPage = lazy(() => import('./pages/GrantsPage.jsx'))
+const SpacePage = lazy(() => import('./pages/SpacePage.jsx'))
+const StartupJunctionPage = lazy(() => import('./pages/StartupJunctionPage.jsx'))
+const AdminPage = lazy(() => import('./pages/AdminPage.jsx'))
+const ConsultingPage = lazy(() => import('./pages/ConsultingPage.jsx'))
+const SignInPage = lazy(() => import('./pages/SignInPage.jsx'))
+const HubGate = lazy(() => import('./pages/hub/HubGate.jsx'))
+const HubIndexPage = lazy(() => import('./pages/hub/HubIndexPage.jsx'))
+const HubChoosePage = lazy(() => import('./pages/hub/HubChoosePage.jsx'))
+const HubStatusPage = lazy(() => import('./pages/hub/HubStatusPage.jsx'))
+const HubNonePage = lazy(() => import('./pages/hub/HubNonePage.jsx'))
+const ConsultingAdminPage = lazy(() => import('./pages/hub/ConsultingAdminPage.jsx'))
+const WorkspacePage = lazy(() => import('./pages/hub/WorkspacePage.jsx'))
 
 export default function App() {
   // The admin dashboard is a standalone tool — no site nav/footer, and it's
@@ -41,6 +41,8 @@ export default function App() {
       <div className="relative min-h-screen bg-white">
         <ScrollToTop />
         {!hideChrome && <Navbar />}
+        {/* Each page is its own chunk: the marketing site never downloads the Hub, and vice versa. */}
+        <Suspense fallback={<div className="min-h-screen" aria-busy="true" />}>
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/about" element={<AboutPage />} />
@@ -63,13 +65,13 @@ export default function App() {
             <Route path="choose" element={<HubChoosePage />} />
             <Route path="status" element={<HubStatusPage />} />
             <Route path="none" element={<HubNonePage />} />
+            <Route path="consulting-admin/*" element={<ConsultingAdminPage />} />
             <Route path=":pillar" element={<WorkspacePage />} />
           </Route>
-          {/* Launchpad Abroad mentor view: same Hub session; LP_Mentors decides access (server-side) */}
-          <Route path="/launchpad/mentor" element={<HubGate />}>
-            <Route index element={<LaunchpadMentorPage />} />
-          </Route>
+          {/* Retired: the Launchpad staff review now lives in Hub Admin > Launchpad students. */}
+          <Route path="/launchpad/mentor" element={<Navigate to="/hub/launchpad" replace />} />
         </Routes>
+        </Suspense>
         {!hideChrome && <Footer />}
       </div>
     </ChromeVisibilityProvider>

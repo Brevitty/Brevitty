@@ -3,11 +3,14 @@
 // Reads are cached (sheetsClient's short TTL); every write re-reads the tab fresh first, so a
 // stale row number is never written to.
 import crypto from 'crypto'
-import { getCachedTab, readSheetRows, appendSheetRow, updateSheetRow, invalidateTab, cellToString, cellToISODate } from './sheetsClient.js'
+import { getCachedTab, readSheetRows, appendSheetRow, updateSheetRow, invalidateTab, cellToString, cellToISODate, warmTabs } from './sheetsClient.js'
+
+// Prefetch every tab a page reads in one request (see sheetsClient.warmTabs).
+export const warm = (tabs) => warmTabs(tabs)
 import { sameEmail } from './consulting/rules.js'
 
 const ID_BYTES = 4
-const DATE_COLS = new Set(['date', 'due', 'due_date', 'review_date', 'renewal_date', 'checked_date', 'submitted_date', 'mou_renewal'])
+const DATE_COLS = new Set(['date', 'deadline', 'assigned_date', 'completed_date', 'created_date', 'due', 'due_date', 'review_date', 'renewal_date', 'checked_date', 'submitted_date', 'mou_renewal'])
 
 const colLetter = (i) => (i < 26 ? String.fromCharCode(65 + i) : `${String.fromCharCode(64 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`)
 const headerOf = (values) => (values[0] || []).map((h) => cellToString(h).trim())

@@ -1,14 +1,17 @@
 // Admin surface, part 1: consultees + dashboard summary. Guarded by auth: 'admin' in the dispatcher.
 import crypto from 'crypto'
-import { findOr404 } from './shared.js'
-import { list, insert, pub } from '../store.js'
+// Reads go through listReal / findRealOr404 (demo account excluded); the login-uniqueness check reads every row.
+import { findRealOr404 as findOr404, listReal as list } from './shared.js'
+import { list as listAll, insert, patch, pub } from '../store.js'
 import {
-  addDays, byDateTime, cleanEmail, cleanText, fail, istToday, sameEmail,
+  addDays, byDateTime, cleanEmail, cleanText, fail, isUpcoming, istToday, sameEmail,
 } from '../rules.js'
 import { INACTIVE_AFTER_DAYS } from '../../../../src/data/consultingConstants.js'
 import { isArchived, sirItems, studentItems } from '../missing.js'
 
 const MAX_FIELD_CHARS = 200
+const DAYS_PER_WEEK = 7
+const NEXT_SESSIONS_SHOWN = 3
 const PASSWORD_MIN = 6
 const PASSWORD_MAX = 128
 const GENERATED_PASSWORD_LEN = 10
@@ -46,7 +49,7 @@ async function createConsultee({ body }) {
   const field = (k) => cleanText(body[k], k, { max: MAX_FIELD_CHARS })
 
   // One login namespace across both tabs: an email can't be both, or twice.
-  const [admins, consultees] = await Promise.all([list('Admins', { fresh: true }), list('Consultees', { fresh: true })])
+  const [admins, consultees] = await Promise.all([listAll('Admins', { fresh: true }), listAll('Consultees', { fresh: true })])
   if ([...admins, ...consultees].some((a) => sameEmail(a.email, email))) fail(409, 'That email already has an account.')
 
   const row = await insert('Consultees', {
@@ -63,13 +66,30 @@ async function createConsultee({ body }) {
   return { consultee: pub(row, { keepPassword: true }) } // sir needs to see the password once, right here
 }
 
+// Edit profile fields and/or reset the password. Email is the join key, so it is never changed here.
+const EDITABLE = ['name', 'department', 'course', 'sem', 'phone', 'startup_name']
+async function updateConsultee({ body }) {
+  const c = await findOr404('Consultees', body.email, 'Consultee')
+  const changes = {}
+  for (const k of EDITABLE) {
+    if (body[k] === undefined) continue
+    changes[k] = cleanText(body[k], k, { required: k === 'name', max: MAX_FIELD_CHARS })
+  }
+  if (body.password !== undefined) {
+    const password = cleanText(body.password, 'password', { required: true, max: PASSWORD_MAX })
+    if (password.length < PASSWORD_MIN) fail(400, `password must be at least ${PASSWORD_MIN} characters.`)
+    changes.password = password
+  }
+  return { consultee: pub(await patch('Consultees', c.email, changes, c), { keepPassword: true }) }
+}
+
 // Full timeline: the consultee (with password, for sir) and every session with its tasks + deliverables.
 async function consulteeDetail({ query }) {
   const consultee = await findOr404('Consultees', query.email, 'Consultee')
   const [sessions, tasks, deliverables] = await Promise.all([
-    list('ConsultingSessions', { fresh: true }),
-    list('Tasks', { fresh: true }),
-    list('Deliverables', { fresh: true }),
+    list('ConsultingSessions'),
+    list('Tasks'),
+    list('Deliverables'),
   ])
   const mine = (row) => sameEmail(row.email, consultee.email)
   return {
@@ -87,10 +107,10 @@ async function consulteeDetail({ query }) {
 
 async function summary() {
   const [consultees, sessions, tasks, deliverables] = await Promise.all([
-    list('Consultees', { fresh: true }),
-    list('ConsultingSessions', { fresh: true }),
-    list('Tasks', { fresh: true }),
-    list('Deliverables', { fresh: true }),
+    list('Consultees'),
+    list('ConsultingSessions'),
+    list('Tasks'),
+    list('Deliverables'),
   ])
   const today = istToday()
   const nameOf = (email) => consultees.find((c) => sameEmail(c.email, email))?.name ?? email
@@ -109,10 +129,25 @@ async function summary() {
   const missingFrom = (pick) => withRows.map((s) => group(pick(s, now), s)).filter((g) => g.items.length).sort((a, b) => b.date.localeCompare(a.date))
   const liveSessionIds = new Set(withRows.filter(isLive).map((s) => s.session_id))
 
+  const missingFromMe = missingFrom(sirItems)
+  const weekStart = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % DAYS_PER_WEEK)) // Monday
+  const weekEnd = addDays(weekStart, DAYS_PER_WEEK - 1)
+  const upcoming = withRows.filter((s) => isLive(s) && isUpcoming(s, now)).sort(byDateTime)
+  const countKind = (kind) => missingFromMe.filter((g) => g.items.some((i) => i.kind === kind)).length
+
   return {
     today,
+    counts: {
+      upcoming: upcoming.length,
+      this_week: upcoming.filter((s) => s.date >= weekStart && s.date <= weekEnd).length,
+      students: consultees.length,
+      missing_mom: countKind('mom'),
+      missing_deliverables: countKind('deliverables'),
+      missing_tasks: countKind('tasks'),
+    },
+    next_sessions: upcoming.slice(0, NEXT_SESSIONS_SHOWN).map((s) => ({ ...pub(s), consultee_name: nameOf(s.email) })),
     missing_from_students: missingFrom(studentItems),
-    missing_from_me: missingFrom(sirItems),
+    missing_from_me: missingFromMe,
     sessions_today: sessions
       .filter((s) => s.date === today && isLive(s))
       .sort(byDateTime)
@@ -135,6 +170,7 @@ async function summary() {
 export default {
   'GET admin/consultees': { auth: 'admin', fn: listConsultees },
   'POST admin/consultees': { auth: 'admin', fn: createConsultee, status: 201 },
+  'PATCH admin/consultees': { auth: 'admin', fn: updateConsultee },
   'GET admin/consultee': { auth: 'admin', fn: consulteeDetail },
   'GET admin/generate-password': { auth: 'admin', fn: async () => ({ password: generatePassword() }) },
   'GET admin/summary': { auth: 'admin', fn: summary },

@@ -68,6 +68,7 @@ export const byDateTime = (a, b) => `${a.date} ${a.start_time}`.localeCompare(`$
 /* ---------------- student input after a session ---------------- */
 
 export const sessionEndMs = (s) => Date.parse(`${s.date}T${s.end_time}:00${IST_OFFSET}`)
+export const isUpcoming = (s, now = Date.now()) => s.status === 'scheduled' && sessionEndMs(s) > now
 export const sessionOver = (s, now = Date.now()) => sessionEndMs(s) <= now
 
 // Why a student can't file minutes/deliverables for this session yet, or '' when they can.

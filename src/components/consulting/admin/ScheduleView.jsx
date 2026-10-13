@@ -21,6 +21,7 @@ export default function ScheduleView() {
   const [duration, setDuration] = useState(DEFAULT_DURATION)
   const [start, setStart] = useState('')
   const [topic, setTopic] = useState('')
+  const [meetLink, setMeetLink] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const day = useLoad(() => admin.sessions({ date }), [date])
@@ -32,7 +33,7 @@ export default function ScheduleView() {
     setBusy(true)
     setError('')
     try {
-      const { session } = await admin.createSession({ email, date, start_time: start, duration_min: duration, topic: topic.trim() })
+      const { session } = await admin.createSession({ email, date, start_time: start, duration_min: duration, topic: topic.trim(), meet_link: meetLink.trim() })
       navigate(paths.session(session.session_id))
     } catch (err) {
       setError(err.message)
@@ -55,14 +56,14 @@ export default function ScheduleView() {
             <PageHeader n={3} eyebrow="Schedule" title="Book a session" subtitle="One consultant, one calendar: booked slots are blocked for everyone." />
             {!people.length ? (
               <motion.div variants={viewItem} className="mt-8">
-                <EmptyState mark="00" title="No consultees yet" body="Add a consultee before booking a session." />
+                <EmptyState mark="00" title="No students yet" body="Add a student before booking a session." />
               </motion.div>
             ) : (
               <div className="grid gap-x-8 lg:grid-cols-[1fr_300px]">
                 <div>
                   <Section n={1} title="Who">
-                    <select value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} aria-label="Consultee">
-                      <option value="">Choose a consultee…</option>
+                    <select value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} aria-label="Student">
+                      <option value="">Choose a student…</option>
                       {[...people]
                         .sort((a, b) => a.name.localeCompare(b.name))
                         .map((c) => (
@@ -121,6 +122,10 @@ export default function ScheduleView() {
                     <input value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={200} placeholder="e.g. Pitch deck review" className={inputClass} aria-label="Topic" />
                   </Section>
 
+                  <Section n={5} title="Meeting link" meta="optional">
+                    <input type="url" value={meetLink} onChange={(e) => setMeetLink(e.target.value)} maxLength={500} placeholder="https://meet.google.com/…" className={inputClass} aria-label="Meeting link" />
+                  </Section>
+
                   {daySessions.length > 0 && (
                     <Section title={`Already on ${fmtDate(date)}`}>
                       <div className="space-y-2">
@@ -140,7 +145,7 @@ export default function ScheduleView() {
                     </div>
                     <dl className="space-y-4 p-5">
                       {[
-                        ['Consultee', person ? person.name : '—'],
+                        ['Student', person ? person.name : '—'],
                         ['Date', date ? `${fmtWeekday(date)}, ${fmtDate(date)}` : '—'],
                         ['Time', startOk ? `${fmtTime(start)} – ${fmtTime(end)} IST` : '—'],
                         ['Topic', topic.trim() || '—'],
@@ -165,7 +170,7 @@ export default function ScheduleView() {
                         <InlineError message={error} />
                       </div>
                       {!ready && !busy && (
-                        <p className={`text-xs ${ORANGE_TEXT}`}>{!person ? 'Choose a consultee.' : !startOk ? 'Pick a free slot.' : ''}</p>
+                        <p className={`text-xs ${ORANGE_TEXT}`}>{!person ? 'Choose a student.' : !startOk ? 'Pick a free slot.' : ''}</p>
                       )}
                     </div>
                   </Card>

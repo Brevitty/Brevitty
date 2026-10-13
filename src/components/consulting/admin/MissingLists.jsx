@@ -51,7 +51,7 @@ function GroupedList({ groups, byStudent }) {
 export default function MissingLists({ fromStudents, fromMe, n }) {
   return (
     <div className="grid gap-x-6 lg:grid-cols-2">
-      <Section n={n} title="Missing from students" meta={`${fromStudents.length} session${fromStudents.length === 1 ? '' : 's'}`}>
+      <Section n={n} title="Waiting on students" meta={`${fromStudents.length} session${fromStudents.length === 1 ? '' : 's'}`}>
         {fromStudents.length ? (
           <div data-testid="missing-from-students">
             <GroupedList groups={fromStudents} byStudent />
@@ -60,7 +60,7 @@ export default function MissingLists({ fromStudents, fromMe, n }) {
           <EmptyState mark="OK" title="Nothing missing" body="Every student is caught up." />
         )}
       </Section>
-      <Section n={n + 1} title="Missing from me" meta={`${fromMe.length} session${fromMe.length === 1 ? '' : 's'}`}>
+      <Section n={n + 1} title="Needs attention" meta={`${fromMe.length} session${fromMe.length === 1 ? '' : 's'}`}>
         {fromMe.length ? (
           <div data-testid="missing-from-me">
             <GroupedList groups={fromMe} />

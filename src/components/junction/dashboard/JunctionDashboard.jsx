@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { COMPETITIONS, getInvoiceTotal, getStagesWithStatus, hasVerifiedCompetitionEntry } from '../../../data/journeyData.js'
+import { getInvoiceTotal, getStagesWithStatus, hasVerifiedCompetitionEntry } from '../../../data/journeyData.js'
 import { useJunctionFetch } from '../../../lib/useJunctionFetch.js'
+import { hubPost } from '../../../lib/hubApi.js'
+import { LoadingView } from '../../hub/ui.jsx'
 import { useChecklist } from '../../../lib/useChecklist.js'
 import { JunctionDataContext } from '../../../lib/junctionData.js'
 import { useHideSiteChrome } from '../../../context/ChromeVisibilityContext.jsx'
@@ -12,18 +14,14 @@ import DashboardSidebar, { DashboardMobileNav } from './DashboardSidebar.jsx'
 import OverviewView from './OverviewView.jsx'
 import JourneyView from './journey/JourneyView.jsx'
 import ToolkitView from './ToolkitView.jsx'
-import MentorsView from './MentorsView.jsx'
 import SessionsView from './SessionsView.jsx'
-import AttendanceView from './AttendanceView.jsx'
 import DocumentsView from './DocumentsView.jsx'
 import {
   GridIcon,
   CompassIcon,
-  UsersIcon,
   BookIcon,
   FileIcon,
   CalendarIcon,
-  CalendarCheckIcon,
 } from './icons.jsx'
 
 const ease = [0.22, 1, 0.36, 1]
@@ -33,14 +31,12 @@ const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: GridIcon },
   { id: 'journey', label: 'My Journey', icon: CompassIcon },
   { id: 'toolkit', label: 'Toolkit', icon: BookIcon },
-  { id: 'mentors', label: 'Mentors', icon: UsersIcon },
   { id: 'sessions', label: 'Sessions', icon: CalendarIcon },
-  { id: 'attendance', label: 'Attendance', icon: CalendarCheckIcon },
   { id: 'documents', label: 'Documents', icon: FileIcon },
 ]
 const NAV_IDS = new Set(NAV_ITEMS.map((n) => n.id))
 const DEFAULT_VIEW = 'overview'
-const EMPTY_DASHBOARD = { profile: null, invoices: [], sessions: [], activity: [] }
+const EMPTY_DASHBOARD = { profile: null, invoices: [], sessions: [], activity: [], competitions: [], resources: {} }
 const MILESTONE_STATUS = { done: 'complete', current: 'current', locked: 'upcoming' }
 
 // The one real Startup Junction workspace UI. Both entry points — the
@@ -63,9 +59,29 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
   const milestones = getStagesWithStatus(
     checklist.checklistState,
     getInvoiceTotal(data.invoices),
-    hasVerifiedCompetitionEntry(COMPETITIONS)
+    hasVerifiedCompetitionEntry(data.competitions)
   ).map((st) => ({ id: st.id, n: st.n, label: st.label, status: MILESTONE_STATUS[st.status] }))
-  const shared = { ...data, checklist }
+  // Optimistic: the card updates at once, the server's list replaces it, a failed save restores the old list and rethrows.
+  const saveCompetition = async (compId, changes) => {
+    const before = data.competitions
+    const apply = (c) => ({
+      ...c,
+      ...(changes.status !== undefined && { status: changes.status }),
+      ...(changes.saved !== undefined && { saved: changes.saved }),
+      ...(changes.add_proof && { proof: [...c.proof.filter((p) => p !== changes.add_proof), changes.add_proof] }),
+      ...(changes.remove_proof && { proof: c.proof.filter((p) => p !== changes.remove_proof) }),
+    })
+    dashboard.setData((d) => ({ ...d, competitions: d.competitions.map((c) => (c.id === compId ? apply(c) : c)) }))
+    try {
+      const res = await hubPost('competitions', { comp_id: compId, ...changes })
+      dashboard.setData((d) => ({ ...d, competitions: res.competitions }))
+    } catch (err) {
+      dashboard.setData((d) => ({ ...d, competitions: before }))
+      if (err.status === 401) onUnauthorized()
+      throw err
+    }
+  }
+  const shared = { ...data, checklist, saveCompetition }
 
   const [changingPassword, setChangingPassword] = useState(false)
   // A deep link like #toolkit opens straight onto that section.
@@ -126,7 +142,7 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
             transition={{ duration: 0.35, ease }}
           >
             {dashboard.loading ? (
-              <p className="p-6 font-mono text-xs uppercase tracking-[0.14em] text-black/40 lg:p-10">Loading your dashboard…</p>
+              <LoadingView label="Loading your dashboard…" />
             ) : dashboard.error ? (
               <div className="p-6 lg:p-10">
                 <p className="text-sm font-medium text-red-500">{dashboard.error}</p>
@@ -142,14 +158,11 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
                     sessions={data.sessions}
                     activity={data.activity}
                     onNavigate={setActiveView}
-                    onUnauthorized={onUnauthorized}
                   />
                 )}
                 {activeView === 'journey' && <JourneyView onUnauthorized={onUnauthorized} firstName={firstName} />}
                 {activeView === 'toolkit' && <ToolkitView onUnauthorized={onUnauthorized} />}
-                {activeView === 'mentors' && <MentorsView onUnauthorized={onUnauthorized} />}
                 {activeView === 'sessions' && <SessionsView sessions={data.sessions} onUnauthorized={onUnauthorized} />}
-                {activeView === 'attendance' && <AttendanceView sessions={data.sessions} onUnauthorized={onUnauthorized} />}
                 {activeView === 'documents' && <DocumentsView onUnauthorized={onUnauthorized} />}
               </JunctionDataContext.Provider>
             )}

@@ -3,7 +3,8 @@ import { useJunctionFetch } from '../../lib/useJunctionFetch.js'
 import { hubPost } from '../../lib/hubApi.js'
 import { deriveLaunchpad } from '../../data/launchpadChecklist.js'
 import PillarDashboard from '../hub/PillarDashboard.jsx'
-import { LoadingView, ErrorView, NoRecordView } from '../hub/ui.jsx'
+import { LoadingView, ErrorView } from '../hub/ui.jsx'
+import SetupView from './SetupView.jsx'
 import { GridIcon, CompassIcon, IdCardIcon, CalendarIcon, FileIcon } from '../junction/dashboard/icons.jsx'
 import OverviewView from './OverviewView.jsx'
 import JourneyView from './JourneyView.jsx'
@@ -46,7 +47,7 @@ export default function LaunchpadDashboard({ email, onSignOut, onUnauthorized })
   const renderView = (view, navigate) => {
     if (load.loading && !data) return <LoadingView label="Loading your Launchpad…" />
     if (load.error && !data) return <ErrorView message={load.error} onRetry={load.refetch} />
-    if (!data.student) return <NoRecordView workspace="Launchpad Abroad" />
+    if (!data.student) return <SetupView save={save} />
     const saveField = (section, field, value) =>
       save('launchpad/profile', { section, field, value }, (d, r) => ({ ...d, profile: { ...d.profile, [`${r.section}.${r.field}`]: r.value } }))
     const lp = { data, ...derived, save, saveField, navigate }

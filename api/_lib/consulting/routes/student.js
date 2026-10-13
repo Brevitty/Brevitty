@@ -3,14 +3,14 @@
 // and deliverables only once the session is over (inputBlockedReason). Task updates are allowed
 // any time: prep tasks can be set on an upcoming session. Only sir can change a session's time.
 import { findOr404 } from './shared.js'
-import { list, insert, patch, pub, newId } from '../store.js'
+import { list, patch, pub } from '../store.js'
+import { checkUploaded, removeFile } from '../../files.js'
 import {
-  byDateTime, cleanEnum, cleanLink, cleanText, fail, FLAG_ON, inputBlockedReason, isFlag, istToday, sameEmail,
+  byDateTime, cleanEnum, cleanText, fail, FLAG_ON, inputBlockedReason, isFlag, istToday, sameEmail,
 } from '../rules.js'
 import { isArchived } from '../missing.js'
 import { TASK_STATUSES } from '../../../../src/data/consultingConstants.js'
 
-const MAX_TITLE_CHARS = 200
 const MAX_MOM_CHARS = 20_000 // a Sheets cell holds 50k; leave headroom
 const MAX_NOTE_CHARS = 500
 const SIR_ONLY_FIELDS = ['date', 'start_time', 'end_time', 'status', 'topic']
@@ -51,16 +51,19 @@ async function ownSessionOpenForInput(account, sessionId) {
   return session
 }
 
-// Minutes of meeting: one text box plus an optional link. Sir reads the same `mom` column.
+// Minutes of meeting: one text box plus an optional attachment (`mom_link` holds its storage path).
+// body.mom_file: undefined keeps the current attachment, '' removes it, a path replaces it.
 async function saveMom({ account, body }) {
   refuseSirFields(body)
   const session = await ownSessionOpenForInput(account, body.session_id)
   const changes = {
     mom: cleanText(body.mom, 'Minutes', { required: true, max: MAX_MOM_CHARS }),
-    mom_link: cleanLink(body.mom_link),
     mom_submitted_at: new Date().toISOString(),
   }
-  return { session: studentSession(pub(await patch('ConsultingSessions', session.session_id, changes, session))) }
+  if (body.mom_file !== undefined) changes.mom_link = await checkUploaded(account.email, 'consulting', body.mom_file, { required: false })
+  const saved = await patch('ConsultingSessions', session.session_id, changes, session)
+  if (changes.mom_link !== undefined && changes.mom_link !== session.mom_link) await removeFile(session.mom_link)
+  return { session: studentSession(pub(saved)) }
 }
 
 // The student opened the session: the "Rescheduled by sir" notice has been seen.
@@ -111,34 +114,23 @@ async function updateTask({ account, body }) {
   return { task: pub(await patch('Tasks', task.task_id, changes, task)) }
 }
 
-async function addDeliverable({ account, body }) {
-  const session = await ownSessionOpenForInput(account, body.session_id)
-  const row = await insert('Deliverables', {
-    deliverable_id: newId('Deliverables'),
-    session_id: session.session_id,
-    email: session.email,
-    title: cleanText(body.title, 'title', { required: true, max: MAX_TITLE_CHARS }),
-    link: cleanLink(body.link, { required: true }),
-    status: 'submitted',
-    submitted_date: istToday(),
-    note: cleanText(body.note, 'Note', { max: MAX_NOTE_CHARS }),
-  })
-  if (isFlag(session.no_deliverables)) await patch('ConsultingSessions', session.session_id, { no_deliverables: '' }, session)
-  return { deliverable: pub(row) }
-}
-
-// Submit (or replace) the link on a deliverable sir requested, with an optional note. Reviewed ones are locked.
+// Submit (or replace) the file on a deliverable sir requested, with an optional note. Reviewed ones are locked.
+// A replaced file's old object is deleted.
 async function submitDeliverable({ account, body }) {
   const d = await findOr404('Deliverables', body.deliverable_id, 'Deliverable', { ownedBy: account.email })
   if (d.status === 'reviewed') fail(409, 'This deliverable has already been reviewed.')
   await ownSessionOpenForInput(account, d.session_id)
+  // No new file + an existing one = a note-only update.
+  const keepFile = (body.file_path === undefined || body.file_path === '') && d.link
   const changes = {
-    link: cleanLink(body.link, { required: true }),
+    link: keepFile ? d.link : await checkUploaded(account.email, 'consulting', body.file_path),
     status: 'submitted',
-    submitted_date: istToday(),
+    submitted_date: keepFile && d.submitted_date ? d.submitted_date : istToday(),
   }
   if (body.note !== undefined) changes.note = cleanText(body.note, 'Note', { max: MAX_NOTE_CHARS })
-  return { deliverable: pub(await patch('Deliverables', d.deliverable_id, changes, d)) }
+  const saved = await patch('Deliverables', d.deliverable_id, changes, d)
+  if (d.link !== changes.link) await removeFile(d.link)
+  return { deliverable: pub(saved) }
 }
 
 export default {
@@ -148,6 +140,5 @@ export default {
   'PATCH sessions/flags': { auth: 'student', fn: setFlags },
   'POST sessions/remove': { auth: 'student', fn: removeSession },
   'PATCH tasks': { auth: 'student', fn: updateTask },
-  'POST deliverables': { auth: 'student', fn: addDeliverable, status: 201 },
   'PATCH deliverables': { auth: 'student', fn: submitDeliverable },
 }

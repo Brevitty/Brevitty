@@ -74,7 +74,8 @@ function StageRail({ stages, selectedStageId, onSelect }) {
   )
 }
 
-function DeliverableRow({ item, done, disabled, highlighted, onToggle }) {
+// links: { template, example } from the ItemResources tab; the buttons only exist when the sheet has a URL.
+function DeliverableRow({ item, links, done, disabled, highlighted, onToggle }) {
   return (
     <div
       id={`journey-item-${item.id}`}
@@ -118,22 +119,42 @@ function DeliverableRow({ item, done, disabled, highlighted, onToggle }) {
         </div>
       </div>
 
-      {(item.sample || item.template) && (
+      {(links?.template || links?.example) && (
         <div className="flex shrink-0 flex-wrap gap-2">
-          {item.template && (
-            <button type="button" className="text-xs font-semibold text-orange transition-opacity hover:opacity-70">
-              Download template
-            </button>
+          {links.template && (
+            <a href={links.template} target="_blank" rel="noreferrer" className="text-xs font-semibold text-orange transition-opacity hover:opacity-70">
+              Open template ↗
+            </a>
           )}
-          {item.sample && (
-            <button type="button" className="text-xs font-semibold text-black/50 transition-colors hover:text-orange">
-              See a sample
-            </button>
+          {links.example && (
+            <a href={links.example} target="_blank" rel="noreferrer" className="text-xs font-semibold text-black/50 transition-colors hover:text-orange">
+              See an example ↗
+            </a>
           )}
         </div>
       )}
     </div>
   )
+}
+
+// A plain-text brief built from the student's own StartupProfiles row; nothing leaves the browser.
+function downloadBrief(profile, ledgerTotal, stageLabel) {
+  const lines = [
+    profile.startupName || 'Your startup',
+    profile.oneLiner || '',
+    '',
+    `Stage: ${stageLabel}`,
+    `Revenue logged: ${currency(ledgerTotal)}`,
+    `Customer interviews run: ${profile.interviewsRun ?? 0}`,
+    '',
+    ...[['Problem', profile.problem], ['Solution', profile.solution], ['Product', profile.product], ['Description', profile.description]].flatMap(([k, v]) => [k.toUpperCase(), v || NOT_SET, '']),
+  ]
+  const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${(profile.startupName || 'startup').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-brief.txt`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 function OnePager({ ledgerTotal, currentStageLabel }) {
@@ -144,9 +165,8 @@ function OnePager({ ledgerTotal, currentStageLabel }) {
         <span className={eyebrowClass}>One-pager</span>
         <button
           type="button"
-          disabled
-          title="PDF export coming soon"
-          className="inline-flex items-center gap-2 rounded-full border border-black/10 px-4 py-2 text-xs font-semibold text-black/40"
+          onClick={() => downloadBrief(profile, ledgerTotal, currentStageLabel)}
+          className="inline-flex items-center gap-2 rounded-full border border-black/15 px-4 py-2 text-xs font-semibold text-ink transition-colors hover:border-orange/50 hover:text-orange"
         >
           Download brief
         </button>
@@ -223,6 +243,7 @@ function Traction({ ledgerTotal }) {
 }
 
 export default function MyStartupView({ stages, checklistState, onToggleItem, ledgerTotal, hasVerifiedCompetition, jumpTarget }) {
+  const { resources = {} } = useJunctionData() // ItemResources: template / example links per journey item
   const currentStage = stages.find((s) => s.status === 'current') || stages[stages.length - 1]
   const [selectedStageId, setSelectedStageId] = useState(currentStage.id)
   const [highlightId, setHighlightId] = useState(null)
@@ -268,6 +289,7 @@ export default function MyStartupView({ stages, checklistState, onToggleItem, le
             <DeliverableRow
               key={item.id}
               item={item}
+              links={resources[item.id]}
               done={itemIsDone(item, checklistState, ledgerTotal, hasVerifiedCompetition)}
               disabled={isLocked}
               highlighted={highlightId === item.id}
@@ -284,6 +306,7 @@ export default function MyStartupView({ stages, checklistState, onToggleItem, le
                 <DeliverableRow
                   key={item.id}
                   item={item}
+                  links={resources[item.id]}
                   done={!!checklistState[item.id]}
                   disabled={isLocked}
                   highlighted={highlightId === item.id}

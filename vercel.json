@@ -3,6 +3,7 @@
   "rewrites": [
     { "source": "/api/consulting/:path*", "destination": "/api/consulting?p=:path*" },
     { "source": "/api/hub/:path*", "destination": "/api/hub?p=:path*" },
+    { "source": "/api/files/:path*", "destination": "/api/files?p=:path*" },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }

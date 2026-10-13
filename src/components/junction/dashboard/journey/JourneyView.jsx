@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  COMPETITIONS,
   getInvoiceTotal,
   getStagesWithStatus,
   hasVerifiedCompetitionEntry,
@@ -9,6 +8,7 @@ import {
 import { useJunctionData } from '../../../../lib/junctionData.js'
 import { ease } from '../motionVariants.js'
 import { TabBar } from '../shared.jsx'
+import { LoadingView } from '../../../hub/ui.jsx'
 import JourneyHome from './JourneyHome.jsx'
 import MyStartupView from './MyStartupView.jsx'
 import CompetitionsView from './CompetitionsView.jsx'
@@ -23,12 +23,11 @@ const TABS = [
 // competitions both feed the stage rail's "current"/"locked" computation
 // (getStagesWithStatus), so they're lifted here rather than duplicated in
 // MyStartupView and JourneyHome.
-export default function JourneyView({ onUnauthorized, firstName }) {
+export default function JourneyView({ firstName }) {
   const [activeTab, setActiveTab] = useState('home')
-  const [competitions, setCompetitions] = useState(COMPETITIONS)
   const [jumpTarget, setJumpTarget] = useState(null)
 
-  const { invoices, checklist } = useJunctionData()
+  const { invoices, checklist, competitions, saveCompetition } = useJunctionData()
   const { loading, error, checklistState, toggleItem } = checklist
 
   const ledgerTotal = getInvoiceTotal(invoices)
@@ -41,11 +40,7 @@ export default function JourneyView({ onUnauthorized, firstName }) {
   }
 
   if (loading) {
-    return (
-      <div className="p-6 lg:p-10">
-        <p className="font-mono text-xs uppercase tracking-[0.14em] text-black/40">Loading your journey…</p>
-      </div>
-    )
+    return <LoadingView label="Loading your journey…" />
   }
 
   if (error) {
@@ -100,7 +95,7 @@ export default function JourneyView({ onUnauthorized, firstName }) {
             />
           )}
           {activeTab === 'competitions' && (
-            <CompetitionsView competitions={competitions} onChange={setCompetitions} />
+            <CompetitionsView competitions={competitions} onSave={saveCompetition} />
           )}
         </motion.div>
       </AnimatePresence>

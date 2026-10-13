@@ -10,9 +10,10 @@ import { DateBlock, SessionMeta, MomBlock } from '../sessionParts.jsx'
 import { TaskItem, DeliverableItem, useSave, SaveStatus } from './parts.jsx'
 import { inputBlockedReason } from '../../../lib/consultingTime.js'
 import { RescheduleNotice, rescheduleNotice } from './RescheduleNotice.jsx'
+import { ACCEPT, FILE_HINT } from '../../../lib/storage.ts'
+import { useUpload, UploadProgress, UploadError, FileLink } from '../../hub/FileUpload.jsx'
 
-const UPLOAD_HINT =
-  'Upload your file to Google Drive (or use a Doc, Sheet or Slides link), set sharing to “Anyone with the link can view”, then paste the link.'
+const UPLOAD_HINT = `Upload the file for each deliverable. ${FILE_HINT}.`
 
 function Block({ n, title, hint, children }) {
   return (
@@ -29,21 +30,34 @@ function Block({ n, title, hint, children }) {
   )
 }
 
+// Attachment state: undefined = keep the current one, '' = remove it, a File = upload + replace.
 function MinutesForm({ session, blocked, onSave }) {
   const [mom, setMom] = useState(session.mom)
-  const [link, setLink] = useState(session.mom_link)
+  const [attachment, setAttachment] = useState(undefined)
+  const [fileKey, setFileKey] = useState(0) // remounts the file input after a save, clearing its chosen name
   const [state, run, edited] = useSave()
+  const { upload, progress, error: uploadError } = useUpload({ pillar: 'consulting', docId: session.session_id })
 
   if (blocked) return <MomBlock mom={session.mom} link={session.mom_link} />
 
-  const dirty = mom !== session.mom || link !== session.mom_link
+  const dirty = mom !== session.mom || attachment !== undefined
+  const current = attachment === undefined ? session.mom_link : ''
+  async function submit(e) {
+    e.preventDefault()
+    let momFile = attachment === '' ? '' : undefined
+    if (attachment instanceof File) {
+      const uploaded = await upload(attachment)
+      if (!uploaded) return
+      momFile = uploaded.path
+    }
+    run(async () => {
+      await onSave(mom.trim(), momFile)
+      setAttachment(undefined)
+      setFileKey((k) => k + 1)
+    })
+  }
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        run(() => onSave(mom.trim(), link.trim()))
-      }}
-    >
+    <form onSubmit={submit}>
       <label htmlFor="mom-text" className="sr-only">
         Minutes of meeting
       </label>
@@ -58,24 +72,34 @@ function MinutesForm({ session, blocked, onSave }) {
         placeholder="What did you discuss, what was decided, and what happens next?"
         className={`${inputClass} min-h-[9rem] resize-y leading-relaxed`}
       />
-      <label htmlFor="mom-link" className={`mt-4 block ${labelClass}`}>
-        Link (optional)
+      <label htmlFor="mom-file" className={`mt-4 block ${labelClass}`}>
+        Attachment (optional)
       </label>
+      {current && (
+        <p className="mt-1.5 flex flex-wrap items-center gap-3 text-sm">
+          <FileLink stored={current} />
+          <button type="button" onClick={() => { setAttachment(''); edited() }} className="font-mono text-[11px] uppercase tracking-[0.12em] text-black/50 hover:text-red-600">
+            Remove
+          </button>
+        </p>
+      )}
       <input
-        id="mom-link"
-        type="url"
-        inputMode="url"
-        value={link}
+        key={fileKey}
+        id="mom-file"
+        type="file"
+        accept={ACCEPT}
         onChange={(e) => {
-          setLink(e.target.value)
+          setAttachment(e.target.files?.[0] || undefined)
           edited()
         }}
-        placeholder="https://docs.google.com/…"
-        className={`mt-1.5 ${inputClass}`}
+        className={`mt-1.5 ${inputClass} file:mr-3 file:rounded-full file:border-0 file:bg-orange/15 file:px-3 file:py-1 file:text-xs file:font-semibold`}
       />
+      <p className="mt-1 text-xs text-black/45">{FILE_HINT}{current ? '. Choosing a file replaces the current one.' : ''}</p>
+      <UploadProgress progress={progress} />
+      <UploadError error={uploadError} />
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={state.busy || !mom.trim() || !dirty}>
-          {state.busy && <Spinner />} Save minutes
+        <Button type="submit" disabled={state.busy || progress !== null || !mom.trim() || !dirty}>
+          {(state.busy || progress !== null) && <Spinner />} Save minutes
         </Button>
         <SaveStatus state={state} />
       </div>
@@ -159,8 +183,8 @@ function SessionDetail({ session, actions }) {
         )}
       </motion.div>
 
-      <Block n={1} title="Minutes of meeting" hint={blocked ? '' : 'Write what was discussed and decided. Add a link if the notes live in a doc.'}>
-        <MinutesForm session={session} blocked={Boolean(blocked)} onSave={(mom, link) => actions.saveMom(session, mom, link)} />
+      <Block n={1} title="Minutes of meeting" hint={blocked ? '' : 'Write what was discussed and decided. Attach a file if you have notes or slides.'}>
+        <MinutesForm session={session} blocked={Boolean(blocked)} onSave={(mom, momFile) => actions.saveMom(session, mom, momFile)} />
       </Block>
 
       <Block n={2} title="Tasks" hint={session.tasks.length ? 'Tick a task when it’s done. Add a note if sir should know something.' : ''}>

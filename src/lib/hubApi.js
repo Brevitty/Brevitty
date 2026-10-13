@@ -1,3 +1,6 @@
+// The Incubation API answers {ok, data, error}; every other route answers the bare payload.
+export const unwrap = (body) => (body?.ok === true && 'data' in body ? body.data : body)
+
 // Writes to /api/hub/* for the Launchpad / Incubation / VAC workspaces (reads go through
 // useJunctionFetch). Throws an Error carrying the server's message and `status`.
 export async function hubPost(path, body) {
@@ -15,7 +18,7 @@ export async function hubPost(path, body) {
   }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) throw Object.assign(new Error(data.error || 'Something went wrong.'), { status: res.status })
-  return data
+  return unwrap(data)
 }
 
 const IST_TZ = 'Asia/Kolkata'

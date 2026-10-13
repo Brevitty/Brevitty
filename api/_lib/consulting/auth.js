@@ -6,7 +6,8 @@
 // signs that person out everywhere.
 
 import crypto from 'crypto'
-import { safeEqual } from '../session.js'
+import { safeEqual, sessionStudent } from '../session.js'
+import { isEnvAdmin } from '../accounts.js'
 import { appendSetCookie } from '../http.js'
 import { list } from './store.js'
 import { fail, sameEmail } from './rules.js'
@@ -76,9 +77,18 @@ export async function currentAccount(req) {
   return account && safeEqual(hmac('cn-pw', account.password), p.f) ? account : null
 }
 
+// ADMIN_EMAILS (env) makes an email a consulting admin too: with a consulting account it is promoted,
+// and with only a Hub sign-in (Students tab) it gets an admin identity. Passwords are untouched.
+async function resolveAccount(req) {
+  const account = await currentAccount(req)
+  if (account) return isEnvAdmin(account.email) ? { ...account, role: ROLES.admin } : account
+  const student = await sessionStudent(req).catch(() => null)
+  return student && isEnvAdmin(student.email) ? { role: ROLES.admin, email: student.email, name: student.name || '' } : null
+}
+
 // Route guard: level is 'any' | 'student' | 'admin'. 401 signed out, 403 wrong role.
 export async function authorize(req, level) {
-  const account = await currentAccount(req)
+  const account = await resolveAccount(req)
   if (!account) fail(401, 'Not signed in.')
   if (level !== 'any' && account.role !== level) fail(403, 'You do not have access to this.')
   return account

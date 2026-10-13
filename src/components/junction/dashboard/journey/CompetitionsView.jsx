@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { CheckIcon } from '../icons.jsx'
+import { FileUploadButton } from '../../../hub/FileUpload.jsx'
+import { fileHref, fileNameOf } from '../../../../lib/storage.ts'
 
 const eyebrowClass = 'font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-black/45'
 
@@ -30,9 +32,22 @@ function StarIcon({ filled }) {
   )
 }
 
-function CompetitionCard({ competition, onChange }) {
-  const patch = (fields) => onChange({ ...competition, ...fields })
-  const addProof = () => patch({ proof: [...competition.proof, `proof-${competition.proof.length + 1}.pdf`] })
+function CompetitionCard({ competition, onSave }) {
+  const [error, setError] = useState('')
+  // onSave applies the change at once and rejects (after restoring the old value) if the server refuses it.
+  const patch = async (fields) => {
+    setError('')
+    try {
+      await onSave(competition.id, fields)
+      return true
+    } catch (err) {
+      setError(err.message || 'Could not save that change.')
+      return false
+    }
+  }
+  const addProof = async ({ path }) => {
+    await patch({ add_proof: path })
+  }
 
   return (
     <div className="rounded-2xl border border-black/10 bg-surface p-6">
@@ -120,29 +135,37 @@ function CompetitionCard({ competition, onChange }) {
           </a>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-start gap-2">
           {competition.proof.map((f) => (
-            <span key={f} className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-black/[0.03] px-2.5 py-1 font-mono text-[10px] text-black/55">
-              <span className="h-3 w-3">
+            <span key={f} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-black/10 bg-black/[0.03] py-1 pl-2.5 pr-1 font-mono text-[10px] text-black/55">
+              <span className="h-3 w-3 shrink-0">
                 <CheckIcon />
               </span>
-              {f}
+              <a href={fileHref(f)} target="_blank" rel="noopener noreferrer" className="truncate hover:text-orange">
+                {fileNameOf(f)}
+              </a>
+              <button type="button" onClick={() => patch({ remove_proof: f })} aria-label={`Remove proof ${fileNameOf(f)}`} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-black/40 hover:bg-red-50 hover:text-red-600">
+                ✕
+              </button>
             </span>
           ))}
-          <button type="button" onClick={addProof} className="text-xs font-semibold text-black/45 transition-colors hover:text-orange">
-            + Add proof
-          </button>
+          <FileUploadButton
+            target={{ pillar: 'startup', docId: competition.id }}
+            label="+ Add proof"
+            ariaLabel={`Add proof for ${competition.name}`}
+            className="text-xs font-semibold text-black/45 transition-colors hover:text-orange disabled:opacity-60"
+            onUploaded={addProof}
+          />
         </div>
       </div>
+      {error && <p role="alert" className="mt-3 text-xs font-medium text-red-500">{error}</p>}
     </div>
   )
 }
 
-export default function CompetitionsView({ competitions, onChange }) {
+export default function CompetitionsView({ competitions, onSave }) {
   const [filter, setFilter] = useState('all')
   const visible = filter === 'all' ? competitions : competitions.filter((c) => c.status === filter)
-
-  const updateCompetition = (updated) => onChange(competitions.map((c) => (c.id === updated.id ? updated : c)))
 
   return (
     <div>
@@ -167,10 +190,10 @@ export default function CompetitionsView({ competitions, onChange }) {
       <div className="mt-6 space-y-5">
         {visible.length === 0 ? (
           <p className="rounded-xl border border-black/10 bg-black/[0.03] px-4 py-4 text-sm text-black/55">
-            No competitions in this filter.
+            {competitions.length ? 'No competitions in this filter. Try another one.' : 'No competitions are listed yet. The Hub team publishes them here; once they do, save the ones you want and track each application.'}
           </p>
         ) : (
-          visible.map((c) => <CompetitionCard key={c.id} competition={c} onChange={updateCompetition} />)
+          visible.map((c) => <CompetitionCard key={c.id} competition={c} onSave={onSave} />)
         )}
       </div>
     </div>

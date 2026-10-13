@@ -255,11 +255,6 @@ function Stats() {
 /* slides up gently.                                                   */
 /* ------------------------------------------------------------------ */
 function Culture() {
-  const details = [
-    ['Industry', 'Business Consulting & Services'],
-    ['Team', '11–50'],
-    ['Workplace', 'Onsite, Jaipur'],
-  ]
 
   return (
     <motion.section
@@ -292,17 +287,6 @@ function Culture() {
           empowering entrepreneurs to thrive and build startups that matter.
         </motion.p>
 
-        {/* <motion.div
-          variants={{ hidden: { opacity: 0, y: 18 }, show: { opacity: 1, y: 0, transition: { duration: 0.7, ease } } }}
-          className="mt-10 flex flex-col items-center justify-center gap-x-8 gap-y-3 text-sm text-black/55 sm:flex-row sm:flex-wrap"
-        >
-          {details.map(([k, v], i) => (
-            <span key={k} className="flex items-center gap-2">
-              {i > 0 && <span className="hidden h-1 w-1 rounded-full bg-orange sm:inline-block" />}
-              <span className="font-semibold text-ink">{k}:</span> {v}
-            </span>
-          ))}
-        </motion.div> */}
       </motion.div>
     </motion.section>
   )

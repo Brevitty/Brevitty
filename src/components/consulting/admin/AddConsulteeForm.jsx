@@ -112,7 +112,7 @@ export default function AddConsulteeForm({ onCreated, onClose }) {
       ) : (
         <Card as="form" onSubmit={submit} className="p-6" noValidate>
           <div className="flex items-center justify-between">
-            <p className={`font-mono text-[11px] font-semibold uppercase tracking-[0.22em] ${ORANGE_TEXT}`}>New consultee</p>
+            <p className={`font-mono text-[11px] font-semibold uppercase tracking-[0.22em] ${ORANGE_TEXT}`}>New student</p>
             <button type="button" onClick={onClose} className="font-mono text-[11px] uppercase tracking-[0.14em] text-black/45 hover:text-ink">
               Close ✕
             </button>

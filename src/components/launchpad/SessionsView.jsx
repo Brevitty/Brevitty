@@ -63,8 +63,7 @@ function SessionCard({ session, index, open, onToggle, onSave }) {
         <div className="flex items-center gap-4 sm:w-72 sm:shrink-0">
           <span className="font-mono text-xs font-semibold text-black/30">[{pad2(index + 1)}]</span>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-ink">Mentor session</p>
-            <p className="truncate text-xs text-black/45">with {session.mentor || 'your mentor'}</p>
+            <p className="truncate text-sm font-semibold text-ink">Launchpad session</p>
           </div>
         </div>
         <span className="font-mono text-xs text-black/55 sm:w-52 sm:shrink-0">
@@ -72,7 +71,7 @@ function SessionCard({ session, index, open, onToggle, onSave }) {
         </span>
         <div className="flex items-center gap-3 sm:ml-auto">
           {session.past && session.status !== 'cancelled' && <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-black/40">{filled}/3 notes</span>}
-          <Pill>{session.status === 'scheduled' && session.past ? 'Awaiting mentor' : session.status}</Pill>
+          <Pill>{session.status === 'scheduled' && session.past ? 'Awaiting update' : session.status}</Pill>
           {editable && <span className="font-mono text-xs text-orange">{open ? '−' : '+'}</span>}
         </div>
       </button>
@@ -120,7 +119,7 @@ export default function SessionsView({ lp }) {
         }
       />
       <div className="mt-10 flex flex-col gap-3">
-        {!list.length && <EmptyNote>{tab === 'upcoming' ? 'No upcoming sessions. Your mentor schedules the next one.' : 'No past sessions yet.'}</EmptyNote>}
+        {!list.length && <EmptyNote>{tab === 'upcoming' ? 'No upcoming sessions. The Launchpad team schedules the next one.' : 'No past sessions yet.'}</EmptyNote>}
         {list.map((s, i) => (
           <SessionCard key={s.sessionId} session={s} index={i} open={openId === s.sessionId} onToggle={() => setOpenId((id) => (id === s.sessionId ? null : s.sessionId))} onSave={saveNotes(s.sessionId)} />
         ))}

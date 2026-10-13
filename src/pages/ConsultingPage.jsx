@@ -10,7 +10,7 @@ import { me, setUnauthorizedHandler } from '../lib/consultingApi.js'
 import { ROLES } from '../data/consultingConstants.js'
 import ConsultingSignIn from '../components/consulting/ConsultingSignIn.jsx'
 import StudentApp from '../components/consulting/student/StudentApp.jsx'
-import AdminApp from '../components/consulting/admin/AdminApp.jsx'
+import { ADMIN_BASE } from '../components/consulting/admin/paths.js'
 
 const EXPIRED_NOTICE = 'Your session expired. Please sign in again.'
 
@@ -18,6 +18,7 @@ export default function ConsultingPage() {
   useHideSiteChrome(true)
   const navigate = useNavigate()
   const hub = useAuth()
+  const hubSignOut = hub.signOut
   // { status: 'checking' | 'signedOut' | 'signedIn', account, notice }
   const [auth, setAuth] = useState({ status: 'checking', account: null, notice: '' })
 
@@ -33,10 +34,10 @@ export default function ConsultingPage() {
   }, [])
 
   const signOut = useCallback(async () => {
-    await hub.signOut() // clears every workspace cookie; the UI drops to signed-out either way
+    await hubSignOut() // clears every workspace cookie; the UI drops to signed-out either way
     setAuth({ status: 'signedOut', account: null, notice: '' })
     navigate('/consulting', { replace: true })
-  }, [navigate, hub.signOut])
+  }, [navigate, hubSignOut])
 
   if (auth.status === 'checking') {
     return (
@@ -59,13 +60,11 @@ export default function ConsultingPage() {
   const isAdmin = auth.account.role === ROLES.admin
   return (
     <Routes>
-      <Route
-        path="admin/*"
-        element={isAdmin ? <AdminApp account={auth.account} onSignOut={signOut} /> : <Navigate to="/consulting" replace />}
-      />
+      {/* the admin panel moved to /hub/consulting-admin (ConsultingAdminPage) */}
+      <Route path="admin/*" element={<Navigate to={isAdmin ? ADMIN_BASE : '/consulting'} replace />} />
       <Route
         path="*"
-        element={isAdmin ? <Navigate to="/consulting/admin" replace /> : <StudentApp account={auth.account} onSignOut={signOut} />}
+        element={isAdmin ? <Navigate to={ADMIN_BASE} replace /> : <StudentApp account={auth.account} onSignOut={signOut} />}
       />
     </Routes>
   )

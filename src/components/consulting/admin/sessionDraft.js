@@ -6,20 +6,20 @@ import { admin } from '../../../lib/consultingApi.js'
 
 const SESSION_FIELDS = ['topic', 'mom', 'status', 'date', 'start_time', 'end_time', 'no_tasks', 'no_deliverables']
 const TASK_FIELDS = ['task', 'due_date', 'status']
-const DELIVERABLE_FIELDS = ['title', 'link', 'status']
+const DELIVERABLE_FIELDS = ['title', 'status'] // the file (link) is the student's upload: shown, never edited here
 
 let keySeq = 0
 const withKey = (row) => ({ _key: `k${++keySeq}`, ...row })
 const pick = (obj, fields) => Object.fromEntries(fields.map((f) => [f, obj[f] ?? '']))
 
 export const newTask = () => withKey({ task: '', due_date: '', status: 'open' })
-export const newDeliverable = () => withKey({ title: '', link: '', status: 'pending' })
+export const newDeliverable = () => withKey({ title: '', status: 'pending' })
 
 export function toDraft({ session, tasks, deliverables }) {
   return {
     session: pick(session, SESSION_FIELDS),
     tasks: tasks.map((t) => withKey({ task_id: t.task_id, ...pick(t, TASK_FIELDS) })),
-    deliverables: deliverables.map((d) => withKey({ deliverable_id: d.deliverable_id, ...pick(d, DELIVERABLE_FIELDS) })),
+    deliverables: deliverables.map((d) => withKey({ deliverable_id: d.deliverable_id, link: d.link, ...pick(d, DELIVERABLE_FIELDS) })),
   }
 }
 

@@ -3,19 +3,22 @@
 // than pulling in an icon-library dependency for a fixed, small icon set.
 
 const base = 'h-full w-full'
-const wrap = (children) => (props) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth={1.75}
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={props.className || base}
-  >
-    {children}
-  </svg>
-)
+const wrap = (children) =>
+  function Icon(props) {
+    return (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={props.className || base}
+      >
+        {children}
+      </svg>
+    )
+  }
 
 export const GridIcon = wrap(
   <>
@@ -119,8 +122,6 @@ export const ChatIcon = wrap(
   <path d="M4 5.5h16v10.5H9.5L5 19.5V16H4V5.5Z" />
 )
 
-export const DocumentActivityIcon = FileIcon
-
 // Hero decoration: mountain-climber silhouette on a gradient sun, built as a
 // flat inline SVG (same hand-authored convention as the icons above) rather
 // than an image asset — nothing in the repo to source a photo/illustration
@@ -159,21 +160,12 @@ export const IdCardIcon = wrap(
 
 export const ChartIcon = wrap(<path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6.5" />)
 
-export const ShieldIcon = wrap(
-  <>
-    <path d="M12 3.5 19 6v5.5c0 4.3-2.9 7.7-7 9-4.1-1.3-7-4.7-7-9V6l7-2.5Z" />
-    <path d="m9 12 2 2 4-4" />
-  </>
-)
-
 export const CoinIcon = wrap(
   <>
     <circle cx="12" cy="12" r="8.5" />
     <path d="M9.5 8.5h5M9.5 11.5h5M11 8.5c2.5 0 2.5 3 0 3H9.5l4 4.5" />
   </>
 )
-
-export const MegaphoneIcon = wrap(<path d="M4 10v4h3l7 4V6L7 10H4ZM17.5 9.5a3.5 3.5 0 0 1 0 5M7 14l1.5 5h2.5L10 15" />)
 
 export const FlagIcon = wrap(<path d="M5.5 21V4M5.5 4.5h11l-2 4 2 4h-11" />)
 

@@ -1,3 +1,4 @@
+import { unwrap } from './hubApi.js'
 // The one data-access layer for the consulting UI. Every component talks to
 // /api/consulting through these functions; nothing else calls fetch for it.
 
@@ -33,7 +34,7 @@ async function request(path, { method = 'GET', body, query } = {}) {
   const data = await res.json().catch(() => ({}))
   if (res.status === 401 && path !== 'login' && path !== 'me') onUnauthorized()
   if (!res.ok) throw new ConsultingError(res.status, data.error || 'Something went wrong.')
-  return data
+  return unwrap(data)
 }
 
 /* ---------------- auth ---------------- */
@@ -43,18 +44,18 @@ export const logout = () => request('logout', { method: 'POST' })
 
 /* ---------------- student ---------------- */
 export const getMySessions = () => request('sessions')
-export const saveMyMom = (session_id, mom, mom_link) => request('sessions', { method: 'PATCH', body: { session_id, mom, mom_link } })
+// mom_file: undefined keeps the attachment, '' removes it, a storage path (storage.ts) replaces it.
+export const saveMyMom = (session_id, mom, mom_file) => request('sessions', { method: 'PATCH', body: { session_id, mom, mom_file } })
 // changes: { status?, note? }
 export const updateMyTask = (task_id, changes) => request('tasks', { method: 'PATCH', body: { task_id, ...changes } })
-export const addMyDeliverable = (session_id, title, link) =>
-  request('deliverables', { method: 'POST', body: { session_id, title, link } })
 // The student opened a session: clears its "Rescheduled by sir" notice.
 export const markSessionSeen = (session_id) => request('sessions/seen', { method: 'POST', body: { session_id } })
 // flags: { no_tasks?: boolean, no_deliverables?: boolean }
 export const setSessionFlags = (session_id, flags) => request('sessions/flags', { method: 'PATCH', body: { session_id, ...flags } })
 export const removeMySession = (session_id) => request('sessions/remove', { method: 'POST', body: { session_id } })
-export const submitMyDeliverable = (deliverable_id, link, note) =>
-  request('deliverables', { method: 'PATCH', body: { deliverable_id, link, note } })
+// file_path: a fresh upload (storage.ts), or undefined to change only the note.
+export const submitMyDeliverable = (deliverable_id, file_path, note) =>
+  request('deliverables', { method: 'PATCH', body: { deliverable_id, file_path, note } })
 
 /* ---------------- admin ---------------- */
 export const admin = {
@@ -62,6 +63,8 @@ export const admin = {
   consultees: () => request('admin/consultees'),
   consultee: (email) => request('admin/consultee', { query: { email } }),
   createConsultee: (fields) => request('admin/consultees', { method: 'POST', body: fields }),
+  updateConsultee: (email, changes) => request('admin/consultees', { method: 'PATCH', body: { email, ...changes } }),
+  board: () => request('admin/board'),
   generatePassword: () => request('admin/generate-password'),
   sessions: (filters) => request('admin/sessions', { query: filters }),
   session: (id) => request('admin/session', { query: { id } }),

@@ -12,6 +12,7 @@ import { SESSION_STATUSES, TASK_STATUSES, DELIVERABLE_STATUSES, DURATIONS_MIN } 
 import SlotPicker, { DurationPicker } from './SlotPicker.jsx'
 import { toDraft, isDirty, validate, persist, newTask, newDeliverable } from './sessionDraft.js'
 import { paths } from './paths.js'
+import { FileLink } from '../../hub/FileUpload.jsx'
 
 const STATUS_LABEL = { scheduled: 'Scheduled', completed: 'Completed', cancelled: 'Cancelled', no_show: 'No-show' }
 
@@ -106,11 +107,13 @@ function Editor({ id, initial }) {
       setSaving(false)
       if (result.error) setError(result.error)
       else {
+        // a cancelled session is hidden server-side from both ends: nothing left to show here
+        if (target.session.status === 'cancelled') return navigate(paths.sessions, { replace: true })
         setSavedAt(new Date())
         setRescheduling(false)
       }
     },
-    [id, base]
+    [id, base, navigate]
   )
 
   // Ctrl/Cmd+S saves; leaving with unsaved minutes asks first.
@@ -212,6 +215,12 @@ function Editor({ id, initial }) {
               placeholder={'What was discussed, what was decided, what happens next…\n\nDecisions:\n- …'}
               className="block w-full resize-y rounded-2xl border border-black/10 bg-white p-5 text-[15px] leading-relaxed text-ink shadow-[inset_4px_0_0_#f97316] outline-none placeholder:text-black/25 focus:border-orange focus:ring-4 focus:ring-orange/15"
             />
+            {initial.session.mom_link && (
+              <p className="mt-2 text-sm">
+                <span className={`${labelClass} mr-2`}>Student’s attachment</span>
+                <FileLink stored={initial.session.mom_link} className={`font-mono text-[11px] underline underline-offset-2 ${ORANGE_TEXT}`} />
+              </p>
+            )}
           </motion.section>
 
           {/* tasks */}
@@ -250,15 +259,14 @@ function Editor({ id, initial }) {
               {draft.deliverables.map((d, i) => (
                 <RowShell key={d._key} index={i} label="deliverable" onRemove={() => removeRow('deliverables', d._key)}>
                   <input aria-label="Deliverable title" value={d.title} onChange={(e) => setRow('deliverables', d._key, { title: e.target.value })} placeholder="Title, e.g. Pitch deck v2" maxLength={200} className={inputClass} />
-                  <div className="flex flex-wrap gap-2">
-                    <input aria-label="Link" type="url" value={d.link} onChange={(e) => setRow('deliverables', d._key, { link: e.target.value })} placeholder="https://… (optional)" className={`${inputClass} min-w-0 flex-1`} />
+                  <div className="flex flex-wrap items-center gap-3">
                     <RowSelect label="Deliverable status" value={d.status} options={DELIVERABLE_STATUSES} onChange={(v) => setRow('deliverables', d._key, { status: v })} />
+                    {d.link ? (
+                      <FileLink stored={d.link} className={`font-mono text-[11px] underline underline-offset-2 ${ORANGE_TEXT}`} />
+                    ) : (
+                      <span className="font-mono text-[11px] uppercase tracking-[0.12em] text-black/40">{d.deliverable_id ? 'Not uploaded yet' : 'The student uploads the file'}</span>
+                    )}
                   </div>
-                  {d.link && /^https?:\/\//.test(d.link) && (
-                    <a href={d.link} target="_blank" rel="noopener noreferrer" className={`font-mono text-[11px] underline underline-offset-2 ${ORANGE_TEXT}`}>
-                      Open link ↗
-                    </a>
-                  )}
                 </RowShell>
               ))}
               {!draft.deliverables.length && <p className="py-4 text-sm text-black/40">No deliverables for this session.</p>}

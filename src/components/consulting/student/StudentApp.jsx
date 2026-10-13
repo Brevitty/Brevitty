@@ -7,7 +7,7 @@ import ConsultingShell from '../ConsultingShell.jsx'
 import { LoadingState, ErrorState } from '../ui.jsx'
 import { useLoad } from '../../../lib/useLoad.js'
 import {
-  getMySessions, saveMyMom, updateMyTask, addMyDeliverable, submitMyDeliverable, markSessionSeen, setSessionFlags, removeMySession,
+  getMySessions, saveMyMom, updateMyTask, submitMyDeliverable, markSessionSeen, setSessionFlags, removeMySession,
 } from '../../../lib/consultingApi.js'
 import { GridIcon, CalendarIcon, CalendarCheckIcon, FileIcon } from '../../junction/dashboard/icons.jsx'
 import OverviewView from './OverviewView.jsx'
@@ -40,8 +40,8 @@ export default function StudentApp({ account, onSignOut }) {
   )
 
   const saveMom = useCallback(
-    async (session, mom, momLink) => {
-      const { session: saved } = await saveMyMom(session.session_id, mom, momLink)
+    async (session, mom, momFile) => {
+      const { session: saved } = await saveMyMom(session.session_id, mom, momFile)
       mapSession(session.session_id, (s) => ({ ...s, ...saved }))
     },
     [mapSession]
@@ -82,26 +82,18 @@ export default function StudentApp({ account, onSignOut }) {
   )
 
   const submitDeliverable = useCallback(
-    async (d, link, note) => {
-      const { deliverable } = await submitMyDeliverable(d.deliverable_id, link, note)
+    async (d, filePath, note) => {
+      const { deliverable } = await submitMyDeliverable(d.deliverable_id, filePath, note)
       replaceDeliverable(deliverable)
     },
     [replaceDeliverable]
-  )
-
-  const addDeliverable = useCallback(
-    async (sessionId, title, link) => {
-      const { deliverable } = await addMyDeliverable(sessionId, title, link)
-      mapSession(sessionId, (s) => ({ ...s, deliverables: [...s.deliverables, deliverable] }))
-    },
-    [mapSession]
   )
 
   let body
   if (loading) body = <LoadingState />
   else if (error && !data) body = <ErrorState message={error} onRetry={reload} />
   else {
-    const props = { account, sessions: data.sessions, toggleTask, updateTask, saveMom, submitDeliverable, addDeliverable, markSeen, setFlags, removeSession }
+    const props = { account, sessions: data.sessions, toggleTask, updateTask, saveMom, submitDeliverable, markSeen, setFlags, removeSession }
     body = (
       <Routes>
         <Route index element={<OverviewView {...props} />} />

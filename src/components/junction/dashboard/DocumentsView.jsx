@@ -2,6 +2,10 @@ import { motion } from 'framer-motion'
 import { viewContainer, viewItem, ease } from './motionVariants.js'
 import { INCUBATION_DOCUMENTS, FUNDING_DOCUMENTS } from '../../../data/documentsData.js'
 import { useJunctionFetch } from '../../../lib/useJunctionFetch.js'
+import { hubPost } from '../../../lib/hubApi.js'
+import { FILE_HINT } from '../../../lib/storage.ts'
+import { FileUploadButton, FileLink } from '../../hub/FileUpload.jsx'
+import { LoadingView, ErrorView } from '../../hub/ui.jsx'
 import { CheckIcon } from './icons.jsx'
 
 const eyebrowClass = 'font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-orange'
@@ -43,9 +47,21 @@ function RequirementTag({ conditional }) {
   ) : null
 }
 
+const uploadButton =
+  'inline-flex min-h-[36px] items-center rounded-full border border-black/15 px-3.5 text-xs font-semibold text-ink transition-colors hover:border-orange/50 hover:text-orange disabled:cursor-not-allowed disabled:opacity-50'
+
 // `marker` is either a numbered badge (the mandatory sequence) or an
 // unnumbered dot (everything optional) — see DocumentsView for why.
-function DocumentRow({ doc, marker }) {
+// A verified document is locked; anything else can be uploaded or replaced (the old file is deleted).
+function DocumentRow({ doc, marker, onSave, onUnauthorized }) {
+  const save = async ({ path }) => {
+    try {
+      await onSave(doc.id, path)
+    } catch (err) {
+      if (err.status === 401) return onUnauthorized()
+      return err.message || 'Could not save the document.'
+    }
+  }
   return (
     <motion.div variants={viewItem} className="flex flex-wrap items-start justify-between gap-4 px-5 py-4">
       <div className="flex items-start gap-4">
@@ -54,11 +70,25 @@ function DocumentRow({ doc, marker }) {
           <p className="text-sm font-semibold text-ink">{doc.name}</p>
           {doc.date && <p className="mt-0.5 text-xs text-black/45">{formatDate(doc.date)}</p>}
           {doc.conditionNote && <p className="mt-1 max-w-sm text-xs italic leading-relaxed text-black/45">{doc.conditionNote}</p>}
+          {doc.file && (
+            <p className="mt-1 text-xs">
+              <FileLink stored={doc.file} />
+            </p>
+          )}
         </div>
       </div>
-      <div className="ml-9 flex shrink-0 items-center gap-2.5 sm:ml-0">
+      <div className="ml-9 flex flex-wrap items-start gap-2.5 sm:ml-0">
         <RequirementTag conditional={doc.conditional} />
         <StatusPill status={doc.status} />
+        {doc.status !== 'verified' && (
+          <FileUploadButton
+            target={{ pillar: 'startup', docId: doc.id }}
+            label={doc.file ? 'Replace' : 'Upload'}
+            ariaLabel={`${doc.file ? 'Replace' : 'Upload'} ${doc.name}`}
+            className={uploadButton}
+            onUploaded={save}
+          />
+        )}
       </div>
     </motion.div>
   )
@@ -72,25 +102,14 @@ const numberBadge = (i) => (
 const unnumberedMarker = <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-black/20" />
 
 export default function DocumentsView({ onUnauthorized }) {
-  const { loading, error, data } = useJunctionFetch('/api/hub/documents', onUnauthorized)
+  const { loading, error, data, refetch, setData } = useJunctionFetch('/api/hub/documents', onUnauthorized)
 
-  if (loading) {
-    return (
-      <div className="p-6 lg:p-10">
-        <p className="font-mono text-xs uppercase tracking-[0.14em] text-black/40">Loading documents…</p>
-      </div>
-    )
-  }
+  if (loading && !data) return <LoadingView label="Loading documents…" />
+  if (error && !data) return <ErrorView message={error} onRetry={refetch} />
 
-  if (error) {
-    return (
-      <div className="p-6 lg:p-10">
-        <p className="text-sm font-medium text-red-500">{error}</p>
-      </div>
-    )
-  }
-
-  const statusFor = (doc) => data?.documents?.[doc.id] || { status: 'not_submitted', date: null }
+  const onSave = async (docId, path) => setData(await hubPost('documents', { doc_id: docId, file_path: path }))
+  const rowProps = { onSave, onUnauthorized }
+  const statusFor = (doc) => data?.documents?.[doc.id] || { status: 'not_submitted', date: null, file: '' }
   const withStatus = (docs) => docs.map((d) => ({ ...d, ...statusFor(d) }))
   const mandatory = withStatus(INCUBATION_DOCUMENTS.filter((d) => d.required))
   const optional = withStatus(INCUBATION_DOCUMENTS.filter((d) => !d.required))
@@ -123,6 +142,7 @@ export default function DocumentsView({ onUnauthorized }) {
         <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-black/40">
           {verifiedCount} of {mandatory.length} mandatory documents verified
         </p>
+        <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.1em] text-black/40">{FILE_HINT}</p>
       </motion.div>
 
       {/* ================= Vertical 1 — Incubation Documents ================= */}
@@ -140,7 +160,7 @@ export default function DocumentsView({ onUnauthorized }) {
           </div>
           <div className="divide-y divide-orange/10">
             {mandatory.map((doc, i) => (
-              <DocumentRow key={doc.id} doc={doc} marker={numberBadge(i)} />
+              <DocumentRow key={doc.id} doc={doc} marker={numberBadge(i)} {...rowProps} />
             ))}
           </div>
         </div>
@@ -153,7 +173,7 @@ export default function DocumentsView({ onUnauthorized }) {
           </div>
           <div className="divide-y divide-black/[0.06]">
             {optional.map((doc) => (
-              <DocumentRow key={doc.id} doc={doc} marker={unnumberedMarker} />
+              <DocumentRow key={doc.id} doc={doc} marker={unnumberedMarker} {...rowProps} />
             ))}
           </div>
         </div>
@@ -173,7 +193,7 @@ export default function DocumentsView({ onUnauthorized }) {
           <div className="mt-6 overflow-hidden rounded-2xl border border-black/10 bg-surface">
             <div className="divide-y divide-black/[0.06]">
               {funding.map((doc) => (
-                <DocumentRow key={doc.id} doc={doc} marker={unnumberedMarker} />
+                <DocumentRow key={doc.id} doc={doc} marker={unnumberedMarker} {...rowProps} />
               ))}
             </div>
           </div>

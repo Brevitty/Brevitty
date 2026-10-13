@@ -19,7 +19,7 @@ export default function TodayView() {
         <Page>
           <PageHeader
             n={1}
-            eyebrow={`Today · ${fmtWeekday(d.today)} ${fmtDate(d.today)}`}
+            eyebrow={`Overview · ${fmtWeekday(d.today)} ${fmtDate(d.today)}`}
             title={`${greeting()}.`}
             subtitle="Who you’re seeing today, what’s slipped, and who has gone quiet."
             action={
@@ -29,25 +29,37 @@ export default function TodayView() {
             }
           />
 
-          <motion.div variants={viewItem} className="mt-8 grid grid-cols-3 gap-4 rounded-2xl bg-ink p-5 text-white sm:p-6">
-            <Stat onDark tone="orange" value={d.sessions_today.length} label="Sessions today" />
-            <Stat onDark tone={d.overdue_tasks.length ? 'red' : 'ink'} value={d.overdue_tasks.length} label="Overdue tasks" />
-            <Stat onDark value={d.inactive_consultees.length} label={`Quiet ${INACTIVE_AFTER_DAYS}d+`} />
+          <motion.div variants={viewItem} className="mt-8 grid grid-cols-2 gap-x-4 gap-y-6 rounded-2xl bg-ink p-5 text-white sm:p-6 md:grid-cols-3 lg:grid-cols-6">
+            <Stat onDark tone="orange" value={d.counts.upcoming} label="Upcoming sessions" />
+            <Stat onDark value={d.counts.this_week} label="This week" />
+            <Stat onDark value={d.counts.students} label="Students" />
+            <Stat onDark tone={d.counts.missing_mom ? 'red' : 'ink'} value={d.counts.missing_mom} label="Missing MoM" />
+            <Stat onDark tone={d.counts.missing_deliverables ? 'red' : 'ink'} value={d.counts.missing_deliverables} label="No deliverables" />
+            <Stat onDark tone={d.counts.missing_tasks ? 'red' : 'ink'} value={d.counts.missing_tasks} label="No tasks" />
           </motion.div>
 
-          <MissingLists fromStudents={d.missing_from_students} fromMe={d.missing_from_me} n={2} />
-
-          <Section n={4} title="Today’s sessions" meta={`${d.sessions_today.length} booked`}>
-            {d.sessions_today.length ? (
+          <Section n={2} title="Next sessions" meta={`${d.sessions_today.length} today`}>
+            {d.next_sessions.length ? (
               <div className="space-y-3">
-                {d.sessions_today.map((s) => (
-                  <SessionRow key={s.session_id} session={s} showDate={false} />
+                {d.next_sessions.map((s) => (
+                  <SessionRow key={s.session_id} session={s} />
                 ))}
               </div>
             ) : (
-              <EmptyState mark="--" title="A clear day" body="No sessions booked for today." />
+              <EmptyState
+                mark="--"
+                title="Nothing booked"
+                body="No upcoming sessions."
+                action={
+                  <Link to={paths.schedule()} className={linkBtn}>
+                    + Schedule a session
+                  </Link>
+                }
+              />
             )}
           </Section>
+
+          <MissingLists fromStudents={d.missing_from_students} fromMe={d.missing_from_me} n={3} />
 
           <div className="grid gap-x-6 lg:grid-cols-2">
             <Section n={5} title="Overdue tasks" meta={d.overdue_tasks.length ? 'oldest first' : ''}>

@@ -1,6 +1,6 @@
 // Shared Google Sheets service-account client for the tab readers/writers added
-// after roster.js and attendanceSheet.js. Those two keep their own private
-// copies of this same JWT/token/fetch dance (by instruction, not touched here);
+// after roster.js. That one keeps its own private
+// copy of this same JWT/token/fetch dance (by instruction, not touched here);
 // everything added since should use this instead of a third/fourth copy.
 
 import crypto from 'crypto'
@@ -11,9 +11,13 @@ const SCOPE = 'https://www.googleapis.com/auth/spreadsheets'
 const TOKEN_SKEW_MS = 60_000
 const JWT_LIFETIME_S = 3600
 const RETRY_DELAY_MS = 400
+// Quota (429) and server errors: back off and retry. Google's per-minute read quota refills
+// continuously, so a few seconds is usually enough; total wait stays well inside a function's timeout.
+const BACKOFF_MS = [600, 1800, 4500]
+const JITTER_MS = 300
 
-const CACHE_TTL_MS = 12_000 // 10-15s per spec
-const STALE_MAX_MS = 60_000 // short grace period on a transient failure (these tabs aren't login-critical)
+const CACHE_TTL_MS = 30_000 // 30-60s per spec; every write calls invalidateTab, so a writer never reads stale rows
+const STALE_MAX_MS = 120_000 // grace period on a transient failure (these tabs aren't login-critical)
 const FAILURE_BACKOFF_MS = 10_000
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -110,13 +114,18 @@ async function getAccessToken() {
 }
 
 async function sheetsFetch(url, init = {}) {
+  let refreshedToken = false
   for (let attempt = 0; ; attempt++) {
     const token = await getAccessToken()
     const res = await fetch(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${token}` } })
+    if (res.status === 401 && !refreshedToken) {
+      accessToken = null
+      refreshedToken = true
+      continue
+    }
     const transient = res.status === 429 || res.status >= 500
-    if (attempt === 0 && (transient || res.status === 401)) {
-      if (res.status === 401) accessToken = null
-      await sleep(transient ? RETRY_DELAY_MS : 0)
+    if (transient && attempt < BACKOFF_MS.length) {
+      await sleep(BACKOFF_MS[attempt] + Math.random() * JITTER_MS)
       continue
     }
     return res
@@ -211,6 +220,39 @@ export async function getCachedTab(tabName, range = 'A:Z') {
   throw new Error(`${tabName} unavailable`)
 }
 
+// Fills the cache for every stale tab in `tabNames` with ONE values:batchGet instead of one read
+// per tab (a workspace page reads 6-8 tabs; Google allows 60 reads/min). Each tab's share of the
+// batch is registered as that tab's in-flight read, so concurrent getCachedTab calls wait for it
+// instead of reading again. On failure, getCachedTab falls back to its stale copy / backoff.
+export async function warmTabs(tabNames, range = 'A:Z') {
+  const now = Date.now()
+  const stale = [...new Set(tabNames)].filter((t) => {
+    const c = cacheByTab.get(t)
+    return !(c && now - c.fetchedAt < CACHE_TTL_MS) && !inflightByTab.has(t) && now >= (retryAfterByTab.get(t) || 0)
+  })
+  if (stale.length < 2) return
+  const ranges = stale.map((t) => `ranges=${encodeURIComponent(`'${t.replace(/'/g, "''")}'!${range}`)}`).join('&')
+  const batch = (async () => {
+    const res = await sheetsFetch(`${SHEETS_URL}/${requireSheetId()}/values:batchGet?valueRenderOption=UNFORMATTED_VALUE&${ranges}`)
+    if (!res.ok) throw new Error(`Sheets batch read failed: HTTP ${res.status} ${await googleErrorText(res)}`)
+    return (await res.json()).valueRanges || []
+  })()
+  stale.forEach((t, i) => {
+    const generation = generationByTab.get(t) || 0
+    const p = batch.then((valueRanges) => {
+      const rows = valueRanges[i]?.values || []
+      if ((generationByTab.get(t) || 0) === generation) cacheByTab.set(t, { rows, fetchedAt: Date.now() })
+      retryAfterByTab.delete(t)
+      return rows
+    })
+    p.catch(() => {}).finally(() => {
+      if (inflightByTab.get(t) === p) inflightByTab.delete(t)
+    })
+    inflightByTab.set(t, p)
+  })
+  await batch.catch((err) => console.error(`[sheets:batch] ${err.message}`))
+}
+
 // Call right after a write to that tab so the writer's own next read isn't stale.
 export function invalidateTab(tabName) {
   cacheByTab.delete(tabName)
@@ -218,17 +260,3 @@ export function invalidateTab(tabName) {
   generationByTab.set(tabName, (generationByTab.get(tabName) || 0) + 1)
 }
 
-// Re-reads the tab fresh (bypassing cache — stale row numbers must never be
-// written to), finds the row whose `keyCols` all equal `keyValues`, and either
-// overwrites it in place or appends a new one built by `buildRow(existingRowOrNull)`.
-export async function upsertRow(tabName, keyCols, keyValues, buildRow, lastColLetter) {
-  const values = await readSheetRows(tabName)
-  const dataRows = values.slice(1)
-  const rowIndex = dataRows.findIndex((r) => keyCols.every((col, i) => cellToString(r[col]).trim() === keyValues[i]))
-  if (rowIndex === -1) {
-    await appendSheetRow(tabName, buildRow(null))
-  } else {
-    await updateSheetRow(tabName, rowIndex + 2, buildRow(dataRows[rowIndex]), lastColLetter)
-  }
-  invalidateTab(tabName)
-}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { viewContainer, viewItem } from './motionVariants.js'
 import { useJunctionFetch } from '../../../lib/useJunctionFetch.js'
+import { LoadingView, ErrorView } from '../../hub/ui.jsx'
 
 function ProgressControl({ sessionId, progress, onSave }) {
   const [completed, setCompleted] = useState(Boolean(progress?.completed))
@@ -78,7 +79,7 @@ function SessionRow({ session, index, progress, onSaveProgress }) {
           </span>
         </div>
         <p className="mt-1 text-sm text-black/55">
-          {session.date} — with {session.mentor}
+          {session.date}{session.time ? ` · ${session.time}` : ''}
         </p>
         {isPast && session.summary && <p className="mt-3 text-sm leading-relaxed text-black/65">{session.summary}</p>}
         {isPast && session.actionItem && (
@@ -115,21 +116,8 @@ export default function SessionsView({ sessions, onUnauthorized }) {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="p-6 lg:p-10">
-        <p className="font-mono text-xs uppercase tracking-[0.14em] text-black/40">Loading sessions…</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="p-6 lg:p-10">
-        <p className="text-sm font-medium text-red-500">{error}</p>
-      </div>
-    )
-  }
+  if (loading && !data) return <LoadingView label="Loading sessions…" />
+  if (error && !data) return <ErrorView message={error} onRetry={refetch} />
 
   const upcoming = sessions.filter((s) => s.status === 'upcoming')
   const past = sessions.filter((s) => s.status === 'past')
@@ -137,7 +125,7 @@ export default function SessionsView({ sessions, onUnauthorized }) {
   return (
     <motion.div variants={viewContainer} initial="hidden" animate="show" className="p-6 lg:p-10">
       <motion.p variants={viewItem} className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">
-        Mentor sessions
+        Cohort sessions
       </motion.p>
       <motion.h2 variants={viewItem} className="mt-4 font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
         Upcoming and past sessions.

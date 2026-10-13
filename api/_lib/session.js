@@ -111,7 +111,7 @@ export async function sessionStudent(req) {
 export async function requireSession(req, res) {
   const student = sessionConfigured() ? await sessionStudent(req) : null
   if (student) return { email: student.email, name: student.name, memberships: student.memberships }
-  res.status(401).json({ error: 'Not signed in.' })
+  res.status(401).json({ ok: false, error: 'Not signed in.' })
   return null
 }
 
@@ -122,7 +122,7 @@ export async function requireMembership(req, res, pillar) {
   if (!session) return null
   const ok = session.memberships.some((m) => m.pillar === pillar && m.status === 'approved')
   if (!ok) {
-    res.status(403).json({ error: 'You do not have access to this workspace.' })
+    res.status(403).json({ ok: false, error: 'You do not have access to this workspace.' })
     return null
   }
   return session

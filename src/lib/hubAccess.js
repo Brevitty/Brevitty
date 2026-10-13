@@ -10,13 +10,14 @@ export function landingPath(memberships) {
   const approved = approvedOf(memberships)
   if (!approved.length) return '/hub/status'
   const only = approved.length === 1 ? getPillar(approved[0].pillar) : null
-  return (only && pillarHref(only)) || '/hub/choose' // a coming-soon workspace has nowhere to go yet
+  return (only && pillarHref(only)) || '/hub/choose'
 }
 
 // Open-redirect protection: only same-site absolute paths. Anything else -> null.
 export function safeNext(next) {
   if (typeof next !== 'string' || !next.startsWith('/')) return null
   if (next.startsWith('//') || next.startsWith('/\\')) return null // protocol-relative (browsers treat \ as /)
+  // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
   if (/[\u0000-\u001f\u007f]/.test(next) || next.includes('://')) return null
   return next
 }

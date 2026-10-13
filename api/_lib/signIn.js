@@ -10,6 +10,7 @@ import { findStudent } from './roster.js'
 import { safeEqual, sessionConfigured as sjConfigured, setSessionCookie, clearSessionCookie, sessionStudent } from './session.js'
 import { findAccount, sessionConfigured as cnConfigured, startSession, endSession, currentAccount } from './consulting/auth.js'
 import { fail, sameEmail } from './consulting/rules.js'
+import { isEnvAdmin } from './accounts.js'
 import { PILLARS, isAdminPillar } from '../../src/data/hubPillars.js'
 import { ROLES } from '../../src/data/consultingConstants.js'
 
@@ -61,7 +62,7 @@ export async function currentIdentity(req) {
 
   const memberships = (student?.memberships ?? []).filter((m) => !isAdminPillar(m.pillar) && !(consulting && m.pillar === 'consulting'))
   if (consulting) memberships.push({ pillar: 'consulting', status: 'approved', role: consulting.role })
-  if (consulting?.role === ROLES.admin) {
+  if (consulting?.role === ROLES.admin || isEnvAdmin(student?.email ?? consulting?.email)) {
     for (const p of PILLARS.filter((x) => x.adminOnly)) memberships.push({ pillar: p.id, status: 'approved' })
   }
   memberships.sort((a, b) => PILLAR_ORDER.indexOf(a.pillar) - PILLAR_ORDER.indexOf(b.pillar)) // cards in hubPillars order

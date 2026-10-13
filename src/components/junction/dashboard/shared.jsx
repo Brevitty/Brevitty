@@ -1,5 +1,5 @@
 // Dashboard pieces shared by Startup Junction and the other Hub workspaces (Launchpad Abroad,
-// Incubation, VAC Learner). Moved here verbatim from OverviewView / AttendanceView / JourneyView;
+// Incubation, VAC Learner). Moved here verbatim from OverviewView / JourneyView;
 // the new props all default to Startup Junction's original behaviour.
 import { motion } from 'framer-motion'
 import { ease } from './motionVariants.js'
@@ -84,17 +84,12 @@ function SealNode({ label, unlocked, caption }) {
   )
 }
 
-// `caption` / `emptyText` default to the attendance copy; other meters (profile completeness,
-// VAC attendance) pass their own.
-export function AttendanceMeter({ presentCount, heldCount, caption, emptyText, className = 'mt-6 max-w-md' }) {
-  if (heldCount === 0) {
-    return (
-      <p className={`${className} text-sm text-black/55`}>
-        {emptyText || 'No sessions have been held yet — your attendance rate will show up here once the first one happens.'}
-      </p>
-    )
+// A percentage bar with a caption (profile completeness, verified documents).
+export function ProgressMeter({ done, total, caption, emptyText = 'Nothing to track yet.', className = 'mt-6 max-w-md' }) {
+  if (total === 0) {
+    return <p className={`${className} text-sm text-black/55`}>{emptyText}</p>
   }
-  const pct = Math.round((presentCount / heldCount) * 100)
+  const pct = Math.round((done / total) * 100)
   return (
     <div className={className}>
       <div className="flex items-center gap-2.5">
@@ -110,7 +105,7 @@ export function AttendanceMeter({ presentCount, heldCount, caption, emptyText, c
         <span className="font-mono text-sm font-semibold text-ink">{pct}%</span>
       </div>
       <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.1em] text-black/40">
-        {caption || `${presentCount} of ${heldCount} sessions attended`}
+        {caption || `${done} of ${total} done`}
       </p>
     </div>
   )

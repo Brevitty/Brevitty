@@ -1,6 +1,7 @@
 // Small helpers shared by the route modules.
 import { fail, sameEmail } from '../rules.js'
-import { find } from '../store.js'
+import { find, list } from '../store.js'
+import { isDemoEmail, withoutDemo } from '../../accounts.js'
 
 // Pulls string fields out of a login-style body; any missing/oversized field is a 401 with `message`.
 export function readFieldsOr401(body, keys, message, maxByKey) {
@@ -17,5 +18,14 @@ export function readFieldsOr401(body, keys, message, maxByKey) {
 export async function findOr404(tab, id, label, { ownedBy } = {}) {
   const row = await find(tab, id)
   if (!row || (ownedBy && !sameEmail(row.email, ownedBy))) fail(404, `${label} not found.`)
+  return row
+}
+
+// Admin reads never include the demo account (accounts.js): its rows are skipped in lists and a
+// direct id reads as 404, so the admin screens only ever show real students.
+export const listReal = async (tab, opts) => withoutDemo(await list(tab, opts))
+export async function findRealOr404(tab, id, label) {
+  const row = await findOr404(tab, id, label)
+  if (isDemoEmail(row.email)) fail(404, `${label} not found.`)
   return row
 }

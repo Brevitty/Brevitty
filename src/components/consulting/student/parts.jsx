@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom'
 import { StatusPill, Button, Spinner, inputClass, labelClass, ORANGE_TEXT } from '../ui.jsx'
 import { isOverdue } from '../sessionParts.jsx'
 import { fmtDate } from '../../../lib/consultingTime.js'
+import { ACCEPT } from '../../../lib/storage.ts'
+import { useUpload, UploadProgress, UploadError, FileLink } from '../../hub/FileUpload.jsx'
 
 export const MAX_NOTE_CHARS = 500
 const DELIVERABLE_LABEL = { pending: 'Pending', submitted: 'Submitted', reviewed: 'Reviewed' }
@@ -115,13 +117,27 @@ export function TaskItem({ task, session, onUpdate }) {
   )
 }
 
-// One deliverable: link + note inline. `blocked` (session not over / cancelled) or a reviewed deliverable is read-only.
+// One deliverable: file + note inline. `blocked` (session not over / cancelled) or a reviewed deliverable is read-only.
+// Choosing a new file replaces the old one (deleted server-side); with a file already in, the note can change alone.
 export function DeliverableItem({ d, session, blocked, onSubmit }) {
-  const [link, setLink] = useState(d.link)
+  const [file, setFile] = useState(null)
+  const [fileKey, setFileKey] = useState(0)
   const [note, setNote] = useState(d.note)
   const [state, run, edited] = useSave()
+  const { upload, progress, error: uploadError } = useUpload({ pillar: 'consulting', docId: d.deliverable_id })
   const locked = blocked || d.status === 'reviewed'
   const id = d.deliverable_id
+
+  async function submit(e) {
+    e.preventDefault()
+    const uploaded = file ? await upload(file) : null
+    if (file && !uploaded) return
+    run(async () => {
+      await onSubmit(d, uploaded?.path, note.trim())
+      setFile(null)
+      setFileKey((k) => k + 1)
+    })
+  }
 
   return (
     <li data-deliverable-id={id} className="py-4 first:pt-0 last:pb-0">
@@ -133,38 +149,36 @@ export function DeliverableItem({ d, session, blocked, onSubmit }) {
       {locked ? (
         <div className="mt-2 text-sm">
           {d.link ? (
-            <a href={d.link} target="_blank" rel="noopener noreferrer" className={`break-all underline decoration-orange/40 underline-offset-2 ${ORANGE_TEXT}`}>
-              {d.link}
-            </a>
+            <FileLink stored={d.link} className={`underline decoration-orange/40 underline-offset-2 ${ORANGE_TEXT}`} />
           ) : (
             <p className="text-black/45">{blocked ? 'Opens once the session has ended.' : 'Nothing submitted.'}</p>
           )}
           {d.note && <p className="mt-1 text-black/60">Note: {d.note}</p>}
         </div>
       ) : (
-        <form
-          className="mt-3"
-          onSubmit={(e) => {
-            e.preventDefault()
-            run(() => onSubmit(d, link.trim(), note.trim()))
-          }}
-        >
-          <label htmlFor={`dl-link-${id}`} className={`block ${labelClass}`}>
-            Link to your file
+        <form className="mt-3" onSubmit={submit}>
+          {d.link && (
+            <p className="mb-2 text-sm">
+              <FileLink stored={d.link} className={`underline decoration-orange/40 underline-offset-2 ${ORANGE_TEXT}`} />
+            </p>
+          )}
+          <label htmlFor={`dl-file-${id}`} className={`block ${labelClass}`}>
+            {d.link ? 'Replace file (optional)' : 'Your file'}
           </label>
           <input
-            id={`dl-link-${id}`}
-            type="url"
-            inputMode="url"
-            required
-            value={link}
+            key={fileKey}
+            id={`dl-file-${id}`}
+            type="file"
+            accept={ACCEPT}
+            required={!d.link}
             onChange={(e) => {
-              setLink(e.target.value)
+              setFile(e.target.files?.[0] || null)
               edited()
             }}
-            placeholder="https://drive.google.com/…"
-            className={`mt-1.5 ${inputClass}`}
+            className={`mt-1.5 ${inputClass} file:mr-3 file:rounded-full file:border-0 file:bg-orange/15 file:px-3 file:py-1 file:text-xs file:font-semibold`}
           />
+          <UploadProgress progress={progress} />
+          <UploadError error={uploadError} />
           <label htmlFor={`dl-note-${id}`} className={`mt-3 block ${labelClass}`}>
             Note (optional)
           </label>
@@ -180,8 +194,8 @@ export function DeliverableItem({ d, session, blocked, onSubmit }) {
             className={`mt-1.5 ${inputClass}`}
           />
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={state.busy || !link.trim() || (link.trim() === d.link && note.trim() === d.note)}>
-              {state.busy && <Spinner />} {d.status === 'pending' ? 'Submit' : 'Update'}
+            <Button type="submit" disabled={state.busy || progress !== null || (!file && (!d.link || note.trim() === d.note))}>
+              {(state.busy || progress !== null) && <Spinner />} {d.status === 'pending' ? 'Submit' : 'Update'}
             </Button>
             <SaveStatus state={state} />
           </div>

@@ -378,3 +378,10 @@ export async function summarizeRoster() {
   }
   return { students: students.length, withoutMemberships, byStatus, byPillar }
 }
+
+// Used by Hub Admin: parse a memberships cell the same way sign-in does, and drop the 12s cache after
+// the admin writes the Students tab so a new/edited user can sign in immediately.
+export const membershipsOf = (cell) => parseMemberships(cell, 'the Students tab')
+export function invalidateRoster() {
+  cache = null
+}

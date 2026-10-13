@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { AttendanceMeter } from '../junction/dashboard/shared.jsx'
+import { ProgressMeter } from '../junction/dashboard/shared.jsx'
 import { PROFILE_SECTIONS } from '../../data/launchpadChecklist.js'
 import { Page, ViewHeader, ListRow, Pill, cardClass, eyebrowClass, viewItem, ghostButton } from '../hub/ui.jsx'
 import SectionForm from './SectionForm.jsx'
@@ -16,7 +16,7 @@ export default function ProfileView({ lp }) {
         subtitle="Text and links only. Upload files (resume, letters, certificates) in Documents."
       />
       <motion.div variants={viewItem}>
-        <AttendanceMeter presentCount={completeness.filled} heldCount={completeness.total} caption={`${completeness.filled} of ${completeness.total} profile fields filled`} />
+        <ProgressMeter done={completeness.filled} total={completeness.total} caption={`${completeness.filled} of ${completeness.total} profile fields filled`} />
       </motion.div>
 
       <div className="mt-10 space-y-5">
@@ -41,7 +41,7 @@ export default function ProfileView({ lp }) {
                   <ListRow label="Guardian contact" value={student.guardian.contact} />
                   <ListRow label="Guardian consent" value={student.guardian.consent ? 'Given' : 'Pending'} />
                 </div>
-                <p className="mt-2 text-xs text-black/45 sm:col-span-2">Grade, school and guardian details are on your intake record. Ask your mentor to change them.</p>
+                <p className="mt-2 text-xs text-black/45 sm:col-span-2">Grade, school and guardian details are on your intake record. Ask the Launchpad team to change them.</p>
               </div>
             )}
 

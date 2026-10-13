@@ -1,6 +1,8 @@
 // Admin surface, part 2: sessions, tasks, deliverables. Guarded by auth: 'admin' in the dispatcher.
-import { findOr404 } from './shared.js'
-import { list, insert, patch, remove, pub, newId } from '../store.js'
+// Reads go through listReal / findRealOr404: the demo account is invisible here (and never blocks a slot).
+import { findRealOr404 as findOr404, listReal as list } from './shared.js'
+import { removeFile } from '../../files.js'
+import { insert, patch, remove, pub, newId } from '../store.js'
 import {
   ApiError, byDateTime, cleanDate, cleanEnum, cleanLink, cleanSessionStatus, cleanText, fail,
   findConflict, FLAG_ON, fromMin, isDate, isFlag, isTime, istToday, sameEmail, slotError, slotToken, toMin,
@@ -18,7 +20,7 @@ const SLOT_FIELDS = ['date', 'start_time', 'end_time']
 
 // Filters: ?date=YYYY-MM-DD (Schedule's taken slots), ?email=, ?status=. Newest first.
 async function listSessions({ query }) {
-  const [sessions, consultees] = await Promise.all([list('ConsultingSessions', { fresh: true }), list('Consultees')])
+  const [sessions, consultees] = await Promise.all([list('ConsultingSessions'), list('Consultees')])
   return {
     sessions: sessions
       .filter(
@@ -37,8 +39,8 @@ async function sessionDetail({ query }) {
   const session = await findOr404('ConsultingSessions', query.id, 'Session')
   const [consultee, tasks, deliverables] = await Promise.all([
     findOr404('Consultees', session.email, 'Consultee'),
-    list('Tasks', { fresh: true }),
-    list('Deliverables', { fresh: true }),
+    list('Tasks'),
+    list('Deliverables'),
   ])
   return {
     session: pub(session),
@@ -70,10 +72,13 @@ async function createSession({ body }) {
     topic: cleanText(body.topic, 'topic', { max: MAX_TEXT_CHARS }),
     status: 'scheduled',
     mom: '',
-    calendar_event_id: '', // Google Calendar is a later task
-    meet_link: '',
+    calendar_event_id: '', // filled by the calendar hook below once it exists
+    meet_link: cleanLink(body.meet_link),
     created_at: new Date().toISOString(),
   })
+  // ponytail: no calendar invite is sent. To add one, create the Google Calendar event + email invite to row.email here,
+  // then patch calendar_event_id (and meet_link if Calendar generates one). Same hook for reschedule/cancel
+  // in updateSession.
   return { session: pub(row) }
 }
 
@@ -105,6 +110,8 @@ async function updateSession({ body }) {
   // Remember the old slot so the student sees "Rescheduled by sir: old -> new" until they open the session.
   if (moved) Object.assign(changes, { rescheduled_from: slotToken(s), reschedule_seen: '' })
   if (revived) changes.archived = '' // a revived session comes back for both ends
+  // A cancelled session disappears from both ends at once (the row stays in the sheet, archived).
+  if (next.status === 'cancelled') changes.archived = FLAG_ON
   return { session: pub(await patch('ConsultingSessions', s.session_id, changes, s)) }
 }
 
@@ -118,6 +125,20 @@ async function removeSession({ body }) {
 
 // A task/deliverable added later means the session is no longer "none needed".
 const clearFlag = (session, flag) => (isFlag(session[flag]) ? patch('ConsultingSessions', session.session_id, { [flag]: '' }, session) : null)
+
+// Cross-student tracker: every task and deliverable on a live (not cancelled/archived) session, fresh from the sheet.
+async function board() {
+  const [sessions, consultees, tasks, deliverables] = await Promise.all([
+    list('ConsultingSessions'),
+    list('Consultees'),
+    list('Tasks'),
+    list('Deliverables'),
+  ])
+  const live = new Map(sessions.filter((s) => !isArchived(s) && s.status !== 'cancelled').map((s) => [s.session_id, s]))
+  const decorate = (row) => ({ ...pub(row), consultee_name: nameOf(consultees, row.email), session_topic: live.get(row.session_id).topic })
+  const onLive = (row) => live.has(row.session_id)
+  return { today: istToday(), tasks: tasks.filter(onLive).map(decorate), deliverables: deliverables.filter(onLive).map(decorate) }
+}
 
 /* ---------------- tasks ---------------- */
 
@@ -150,10 +171,11 @@ async function updateTask({ body }) {
 
 /* ---------------- deliverables ---------------- */
 
+// Sir requests a deliverable (title + status); the student uploads the file against it.
 async function createDeliverable({ body }) {
   const session = await findOr404('ConsultingSessions', body.session_id, 'Session')
-  const link = cleanLink(body.link)
-  const status = body.status === undefined ? (link ? 'submitted' : 'pending') : cleanEnum(body.status, DELIVERABLE_STATUSES, 'status')
+  const link = ''
+  const status = body.status === undefined ? 'pending' : cleanEnum(body.status, DELIVERABLE_STATUSES, 'status')
   const row = await insert('Deliverables', {
     deliverable_id: newId('Deliverables'),
     session_id: session.session_id,
@@ -171,7 +193,6 @@ async function updateDeliverable({ body }) {
   const d = await findOr404('Deliverables', body.deliverable_id, 'Deliverable')
   const changes = {}
   if (body.title !== undefined) changes.title = cleanText(body.title, 'title', { required: true, max: MAX_TEXT_CHARS })
-  if (body.link !== undefined) changes.link = cleanLink(body.link)
   if (body.status !== undefined) {
     changes.status = cleanEnum(body.status, DELIVERABLE_STATUSES, 'status')
     if (changes.status !== 'pending' && !d.submitted_date) changes.submitted_date = istToday()
@@ -182,7 +203,9 @@ async function updateDeliverable({ body }) {
 /* ---------------- delete (by ?id=) ---------------- */
 
 const deleter = (tab, label) => async ({ query }) => {
+  const row = await findOr404(tab, query.id, label)
   if (!(await remove(tab, query.id))) throw new ApiError(404, `${label} not found.`)
+  await removeFile(row.link) // a deleted deliverable takes its uploaded file with it
   return { ok: true }
 }
 
@@ -192,7 +215,8 @@ export default {
   'POST admin/sessions': { auth: 'admin', fn: createSession, status: 201 },
   'PATCH admin/sessions': { auth: 'admin', fn: updateSession },
   'POST admin/sessions/remove': { auth: 'admin', fn: removeSession },
-  'POST admin/tasks': { auth: 'admin', fn: createTask, status: 201 },
+  'GET admin/board': { auth: 'admin', fn: board },
+  'POST admin/tasks':{ auth: 'admin', fn: createTask, status: 201 },
   'PATCH admin/tasks': { auth: 'admin', fn: updateTask },
   'DELETE admin/tasks': { auth: 'admin', fn: deleter('Tasks', 'Task') },
   'POST admin/deliverables': { auth: 'admin', fn: createDeliverable, status: 201 },

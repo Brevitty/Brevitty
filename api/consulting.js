@@ -4,6 +4,7 @@
 import { readJson } from './_lib/http.js'
 import { ApiError } from './_lib/consulting/rules.js'
 import { authorize } from './_lib/consulting/auth.js'
+import { warmTabs } from './_lib/sheetsClient.js'
 import authRoutes from './_lib/consulting/routes/auth.js'
 import studentRoutes from './_lib/consulting/routes/student.js'
 import adminRoutes from './_lib/consulting/routes/admin.js'
@@ -11,6 +12,9 @@ import adminSessionRoutes from './_lib/consulting/routes/adminSessions.js'
 
 const ROUTES = { ...authRoutes, ...studentRoutes, ...adminRoutes, ...adminSessionRoutes }
 const BODY_METHODS = new Set(['POST', 'PATCH', 'PUT'])
+// Every consulting page reads these (auth reads Admins + Consultees on each request): one batchGet
+// fills the shared 30 s cache for all of them.
+const CONSULTING_READ_TABS = ['Admins', 'Consultees', 'ConsultingSessions', 'Tasks', 'Deliverables']
 const UNAVAILABLE = 'The consulting workspace is temporarily unavailable. Please try again in a few minutes.'
 
 // Vercel rewrites to /api/consulting?p=<route>; the dev bridge leaves /consulting/<route>. Accept both.
@@ -41,13 +45,14 @@ export default async function handler(req, res) {
       if (!body) throw new ApiError(400, 'Request body must be a JSON object.')
     }
     const query = Object.fromEntries([...url.searchParams].filter(([k]) => k !== 'p'))
+    if (req.method === 'GET') await warmTabs(CONSULTING_READ_TABS)
     const account = entry.auth === 'none' ? null : await authorize(req, entry.auth)
 
     const data = await entry.fn({ req, res, body, query, account })
-    return res.status(entry.status ?? 200).json(data)
+    return res.status(entry.status ?? 200).json({ ok: true, data })
   } catch (err) {
-    if (err instanceof ApiError) return res.status(err.status).json({ error: err.message })
+    if (err instanceof ApiError) return res.status(err.status).json({ ok: false, error: err.message })
     console.error(`[consulting] ${err.message}`) // never log bodies: they can hold passwords
-    return res.status(503).json({ error: UNAVAILABLE })
+    return res.status(503).json({ ok: false, error: UNAVAILABLE })
   }
 }

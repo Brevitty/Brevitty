@@ -1,21 +1,23 @@
 // Admin panel for the consultant. Each view loads its own data through consultingApi.admin.
 import { Route, Routes, Navigate } from 'react-router-dom'
 import ConsultingShell from '../ConsultingShell.jsx'
-import { GridIcon, UsersIcon, CalendarIcon, CalendarCheckIcon } from '../../junction/dashboard/icons.jsx'
+import { GridIcon, UsersIcon, CalendarIcon, CalendarCheckIcon, ClipboardIcon } from '../../junction/dashboard/icons.jsx'
 import TodayView from './TodayView.jsx'
 import ConsulteesView from './ConsulteesView.jsx'
 import ConsulteeDetailView from './ConsulteeDetailView.jsx'
 import ScheduleView from './ScheduleView.jsx'
 import SessionsListView from './SessionsListView.jsx'
 import SessionDetailView from './SessionDetailView.jsx'
+import TasksBoardView from './TasksBoardView.jsx'
 
 import { ADMIN_BASE } from './paths.js'
 
 const NAV = [
-  { to: ADMIN_BASE, end: true, label: 'Today', icon: GridIcon },
-  { to: `${ADMIN_BASE}/consultees`, label: 'Consultees', icon: UsersIcon },
+  { to: ADMIN_BASE, end: true, label: 'Overview', icon: GridIcon },
+  { to: `${ADMIN_BASE}/consultees`, label: 'Students', icon: UsersIcon },
   { to: `${ADMIN_BASE}/schedule`, label: 'Schedule', icon: CalendarIcon },
   { to: `${ADMIN_BASE}/sessions`, label: 'Sessions', icon: CalendarCheckIcon },
+  { to: `${ADMIN_BASE}/tasks`, label: 'Tasks', icon: ClipboardIcon },
 ]
 
 export default function AdminApp({ account, onSignOut }) {
@@ -28,6 +30,7 @@ export default function AdminApp({ account, onSignOut }) {
         <Route path="schedule" element={<ScheduleView />} />
         <Route path="sessions" element={<SessionsListView />} />
         <Route path="sessions/:id" element={<SessionDetailView />} />
+        <Route path="tasks" element={<TasksBoardView />} />
         <Route path="*" element={<Navigate to={ADMIN_BASE} replace />} />
       </Routes>
     </ConsultingShell>
