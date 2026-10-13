@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { viewContainer, viewItem } from './motionVariants.js'
 import { StageRail } from './shared.jsx'
+import { useAssignedMentors } from '../../../lib/useAssignedMentors.js'
 import { useJunctionData } from '../../../lib/junctionData.js'
 import {
   getInvoiceTotal,
@@ -17,10 +18,15 @@ import {
   VideoIcon,
   FileIcon,
   BookIcon,
+  UsersIcon,
   CalendarCheckIcon,
   ChatIcon,
   MountainClimberIllustration,
 } from './icons.jsx'
+
+function formatShortDate(dateStr) {
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
 
 function formatMonthDay(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`)
@@ -46,6 +52,7 @@ const ACTIVITY_STYLE = {
 const QUICK_ACCESS = [
   { id: 'documents', icon: FileIcon, title: 'Documents', subtitle: 'Upload, manage, share' },
   { id: 'toolkit', icon: BookIcon, title: 'Toolkit', subtitle: 'Templates, guides, resources' },
+  { id: 'mentors', icon: UsersIcon, title: 'Mentors', subtitle: 'Your assigned mentors' },
   { id: 'sessions', icon: CalendarCheckIcon, title: 'Sessions', subtitle: 'Upcoming & past sessions' },
 ]
 
@@ -55,7 +62,8 @@ function greetingFor(hour) {
   return 'Good evening' // 17:00-20:59 explicitly, and everything else (21:00-04:59) falls back to the same copy
 }
 
-export default function OverviewView({ firstName, sessions, activity, onNavigate }) {
+export default function OverviewView({ firstName, sessions, activity, onNavigate, onUnauthorized }) {
+  const { mentors } = useAssignedMentors(onUnauthorized)
   const { invoices, checklist, competitions } = useJunctionData()
   const { checklistState } = checklist
 
@@ -72,6 +80,13 @@ export default function OverviewView({ firstName, sessions, activity, onNavigate
 
   const greeting = greetingFor(new Date().getHours())
   const nextSession = sessions.find((s) => s.status === 'upcoming')
+
+  const mentorStatus = (mentor) => {
+    const upcoming = sessions.find((s) => s.status === 'upcoming' && s.mentor === mentor.name)
+    return upcoming
+      ? { dot: 'bg-orange', label: `Next session · ${formatShortDate(upcoming.date)}` }
+      : { dot: 'bg-emerald-500', label: 'Available this week' }
+  }
 
   const sessionDate = nextSession ? formatMonthDay(nextSession.date) : null
 
@@ -184,8 +199,44 @@ export default function OverviewView({ firstName, sessions, activity, onNavigate
         </motion.div>
       </div>
 
-      {/* next session / activity */}
-      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      {/* mentors / next session / activity */}
+      <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-3">
+        <motion.div variants={viewItem} className={cardClass}>
+          <div className="flex items-center justify-between">
+            <span className={eyebrowClass}>Your mentors</span>
+            <button type="button" onClick={() => onNavigate('mentors')} className={viewAllClass}>
+              View all
+              <span className="h-3 w-3">
+                <ChevronRightIcon />
+              </span>
+            </button>
+          </div>
+          <div className="mt-5 space-y-5">
+            {!mentors.length && <p className="text-sm text-black/55">No mentor assigned yet.</p>}
+            {mentors.map((m) => {
+              const status = mentorStatus(m)
+              return (
+                <div key={m.mentor_id} className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black/[0.06] font-mono text-xs font-semibold text-black/60">
+                    {m.name
+                      .split(' ')
+                      .map((w) => w[0])
+                      .join('')}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">{m.name}</p>
+                    <p className="truncate text-xs text-black/50">{m.expertise}</p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} />
+                      <span className="text-[11px] text-black/50">{status.label}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </motion.div>
+
         <motion.div variants={viewItem} className={cardClass}>
           <div className="flex items-center justify-between">
             <span className={eyebrowClass}>Next session</span>
@@ -263,7 +314,7 @@ export default function OverviewView({ firstName, sessions, activity, onNavigate
           <span className={eyebrowClass}>Quick access</span>
           <span className="hidden text-xs text-black/40 sm:block">Everything you need, in one place.</span>
         </div>
-        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {QUICK_ACCESS.map((q) => (
             <button
               key={q.id}

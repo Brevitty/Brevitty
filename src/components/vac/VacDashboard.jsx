@@ -4,15 +4,16 @@ import { hubPost } from '../../lib/hubApi.js'
 import PillarDashboard from '../hub/PillarDashboard.jsx'
 import { LoadingView, ErrorView } from '../hub/ui.jsx'
 import EnrollView from './EnrollView.jsx'
-import { GridIcon, BookIcon, ClockIcon, FileIcon, ClipboardIcon, AwardIcon, ChatIcon } from '../junction/dashboard/icons.jsx'
+import { GridIcon, BookIcon, ClockIcon, CalendarCheckIcon, FileIcon, ClipboardIcon, AwardIcon, ChatIcon } from '../junction/dashboard/icons.jsx'
 import {
-  OverviewView, CourseView, ScheduleView, ContentView, AssignmentsView, CertificateView, FeedbackView,
+  OverviewView, CourseView, ScheduleView, AttendanceView, ContentView, AssignmentsView, CertificateView, FeedbackView,
 } from './VacViews.jsx'
 
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: GridIcon, View: OverviewView },
   { id: 'course', label: 'Course', icon: BookIcon, View: CourseView },
   { id: 'schedule', label: 'Schedule', icon: ClockIcon, View: ScheduleView },
+  { id: 'attendance', label: 'Attendance', icon: CalendarCheckIcon, View: AttendanceView },
   { id: 'content', label: 'Content', icon: FileIcon, View: ContentView },
   { id: 'assignments', label: 'Assignments', icon: ClipboardIcon, View: AssignmentsView },
   { id: 'certificate', label: 'Certificate', icon: AwardIcon, View: CertificateView },

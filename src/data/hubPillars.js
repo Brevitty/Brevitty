@@ -15,8 +15,8 @@ export const PILLARS = [
     id: 'startup',
     slug: 'startup',
     title: 'Startup Junction Founder',
-    description: 'Validate your idea, build your toolkit, and track your cohort progress.',
-    nav: ['Overview', 'Cohort', 'Sessions', 'Documents', 'Resources'],
+    description: 'Validate your idea, build your toolkit, and track your cohort with your mentors.',
+    nav: ['Overview', 'Cohort', 'Mentors', 'Attendance', 'Sessions', 'Documents', 'Resources'],
   },
   {
     id: 'consulting',
@@ -45,8 +45,8 @@ export const PILLARS = [
     id: 'vac',
     slug: 'vac',
     title: 'VAC Learner',
-    description: 'Follow your course schedule, submit assignments, and earn your certificate.',
-    nav: ['Overview', 'Course', 'Schedule', 'Content', 'Assignments', 'Certificate', 'Feedback'],
+    description: 'Follow your course schedule, submit assignments, and track attendance.',
+    nav: ['Overview', 'Course', 'Schedule', 'Attendance', 'Content', 'Assignments', 'Certificate', 'Feedback'],
   },
   {
     id: 'admin',
@@ -54,7 +54,7 @@ export const PILLARS = [
     title: 'Hub Admin',
     adminOnly: true,
     description: 'Oversee cohorts, flag at-risk accounts, and manage users across the Hub.',
-    nav: ['Master Dashboard', 'At-Risk Flags', 'Workload', 'Reports', 'User Management', 'Launchpad students', 'Content'],
+    nav: ['Master Dashboard', 'At-Risk Flags', 'Workload', 'Reports', 'User Management', 'Launchpad students', 'Attendance', 'Content'],
   },
 ]
 

@@ -14,14 +14,18 @@ import DashboardSidebar, { DashboardMobileNav } from './DashboardSidebar.jsx'
 import OverviewView from './OverviewView.jsx'
 import JourneyView from './journey/JourneyView.jsx'
 import ToolkitView from './ToolkitView.jsx'
+import MentorsView from './MentorsView.jsx'
 import SessionsView from './SessionsView.jsx'
+import AttendanceView from './AttendanceView.jsx'
 import DocumentsView from './DocumentsView.jsx'
 import {
   GridIcon,
   CompassIcon,
+  UsersIcon,
   BookIcon,
   FileIcon,
   CalendarIcon,
+  CalendarCheckIcon,
 } from './icons.jsx'
 
 const ease = [0.22, 1, 0.36, 1]
@@ -31,7 +35,9 @@ const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: GridIcon },
   { id: 'journey', label: 'My Journey', icon: CompassIcon },
   { id: 'toolkit', label: 'Toolkit', icon: BookIcon },
+  { id: 'mentors', label: 'Mentors', icon: UsersIcon },
   { id: 'sessions', label: 'Sessions', icon: CalendarIcon },
+  { id: 'attendance', label: 'Attendance', icon: CalendarCheckIcon },
   { id: 'documents', label: 'Documents', icon: FileIcon },
 ]
 const NAV_IDS = new Set(NAV_ITEMS.map((n) => n.id))
@@ -158,11 +164,14 @@ export default function JunctionDashboard({ email, onSignOut, onUnauthorized }) 
                     sessions={data.sessions}
                     activity={data.activity}
                     onNavigate={setActiveView}
+                    onUnauthorized={onUnauthorized}
                   />
                 )}
                 {activeView === 'journey' && <JourneyView onUnauthorized={onUnauthorized} firstName={firstName} />}
                 {activeView === 'toolkit' && <ToolkitView onUnauthorized={onUnauthorized} />}
+                {activeView === 'mentors' && <MentorsView onUnauthorized={onUnauthorized} />}
                 {activeView === 'sessions' && <SessionsView sessions={data.sessions} onUnauthorized={onUnauthorized} />}
+                {activeView === 'attendance' && <AttendanceView sessions={data.sessions} onUnauthorized={onUnauthorized} />}
                 {activeView === 'documents' && <DocumentsView onUnauthorized={onUnauthorized} />}
               </JunctionDataContext.Provider>
             )}

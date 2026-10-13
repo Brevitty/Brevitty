@@ -2,17 +2,18 @@
 // Tabs (row-1 headers, created by scripts/setup-sheets.js; read by header name):
 //   StartupProfiles  email | startup_name | team_name | one_liner | description | problem | solution | product | interviews_run
 //   Invoices         email | date | customer | amount | note
-//   CohortSessions   session_id | date | time | platform | topic | summary | action_item   (cohort-wide)
+//   CohortSessions   session_id | date | time | platform | mentor | topic | summary | action_item   (cohort-wide)
 //   Activity         email | date | kind | title | actor
 import { getCachedTab, rowsToObjects, cellToString, cellToISODate } from './sheetsClient.js'
 import { istToday, isFlag, fail, cleanText, cleanEnum } from './consulting/rules.js'
 import { checkUploaded, removeFile } from './files.js'
 import { allRows, rowsFor as storeRowsFor, upsert, warm } from './pillarStore.js'
+import { isDemoEmail, isDemoSessionId } from './accounts.js'
 
 export const DASHBOARD_TABS = {
   StartupProfiles: ['email', 'startup_name', 'team_name', 'one_liner', 'description', 'problem', 'solution', 'product', 'interviews_run'],
   Invoices: ['email', 'date', 'customer', 'amount', 'note'],
-  CohortSessions: ['session_id', 'date', 'time', 'platform', 'topic', 'summary', 'action_item'],
+  CohortSessions: ['session_id', 'date', 'time', 'platform', 'mentor', 'topic', 'summary', 'action_item'],
   Activity: ['email', 'date', 'kind', 'title', 'actor'],
 }
 const ACTIVITY_KINDS = ['document', 'complete', 'session', 'feedback'] // the icons OverviewView knows
@@ -25,10 +26,11 @@ const shortDate = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-U
 
 // Cohort sessions, upcoming (soonest first) then past (newest first). A session dated today
 // still counts as upcoming: the tab has a free-text time, not an end time.
-export async function getCohortSessions() {
+// viewerEmail: the demo account also sees the demo sessions; everyone else (and admins) never does.
+export async function getCohortSessions(viewerEmail = '', includeDemo = isDemoEmail(viewerEmail)) {
   const today = istToday()
   const sessions = rowsToObjects(await getCachedTab('CohortSessions'))
-    .filter((r) => text(r.session_id))
+    .filter((r) => text(r.session_id) && (includeDemo || !isDemoSessionId(text(r.session_id))))
     .map((r) => {
       const date = cellToISODate(r.date)
       return {
@@ -36,6 +38,7 @@ export async function getCohortSessions() {
         date,
         time: text(r.time),
         platform: text(r.platform),
+        mentor: text(r.mentor),
         topic: text(r.topic),
         status: date < today ? 'past' : 'upcoming',
         summary: text(r.summary),
@@ -87,7 +90,7 @@ async function getActivity(email) {
 // one batchGet fills the shared cache for all of them (see sheetsClient.warmTabs).
 const STARTUP_READ_TABS = [
   'StartupProfiles', 'Invoices', 'CohortSessions', 'Activity', 'Competitions', 'CompetitionEntries', 'ItemResources',
-  'ChecklistStatus', 'Documents', 'SessionProgress',
+  'ChecklistStatus', 'Mentors', 'MentorAssignments', 'Documents', 'Attendance', 'SessionProgress',
 ]
 export const warmStartup = () => warm(STARTUP_READ_TABS)
 
@@ -98,7 +101,7 @@ export async function getDashboard(email) {
   const [profile, invoices, sessions, activity, competitions, resources] = await Promise.all([
     getProfile(email),
     getInvoices(email),
-    getCohortSessions(),
+    getCohortSessions(email),
     getActivity(email),
     getCompetitions(email),
     getItemResources(),

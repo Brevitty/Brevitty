@@ -4,8 +4,10 @@
 // an approved membership in that workspace, and every read/write is scoped to the session's
 // own email (a student can never name another student's rows).
 //   GET  workspace?pillar=<id>    the server-side role check the Hub workspace pages call
-//   GET  dashboard | documents   POST documents   (Startup Junction)
+//   GET  dashboard | mentors | mentor-assignments | documents | attendance   POST documents   (Startup Junction)
 //   GET  launchpad                POST launchpad/{setup,checklist,profile,documents,sessions}
+//   GET  launchpad/mentor[/student?email=]   POST launchpad/mentor/{feedback,schedule,verify,signoff}
+//        (mentor routes: the signed-in email must be a contact_email in LP_Mentors)
 //   Incubation responses are {ok:true,data} / {ok:false,error}; the client unwraps them (hubApi.js, useJunctionFetch).
 //   GET  incubation               POST incubation/{profile,kpis,documents,funding,funding/delete,schemes/status}
 //   File uploads/downloads for every workspace: /api/files (api/files.js).
@@ -13,14 +15,18 @@
 //   POST competitions             (Startup Junction competitions: status / saved / proof link)
 //   GET  admin/{overview,at-risk,workload,reports,users}   POST admin/users[/update]   (Hub Admin only, 403 otherwise)
 //   GET  admin/launchpad[/student?email=]   POST admin/launchpad/{feedback,schedule,verify,signoff}   (Launchpad students review)
-//   GET  admin/content?tab=   POST admin/content[/delete]   (competitions, schemes, templates, sessions)
+//   GET  admin/attendance[?session=]   POST admin/attendance   (mark present / absent, Hub Admin only)
+//   GET  admin/content?tab=   POST admin/content[/delete]   (competitions, schemes, mentors, templates, sessions)
 import { readJson } from './_lib/http.js'
 import { requireSession } from './_lib/session.js'
 import { currentIdentity } from './_lib/signIn.js'
 import { ApiError } from './_lib/consulting/rules.js'
 import { getPillar } from '../src/data/hubPillars.js'
 import { getDashboard } from './_lib/dashboardSheet.js'
+import { getMentors } from './_lib/mentorsSheet.js'
+import { getMentorAssignments } from './_lib/mentorAssignmentsSheet.js'
 import { getDocuments, saveDocument } from './_lib/documentsSheet.js'
+import { getAttendanceSummary, adminAttendanceSessions, adminAttendanceRoster, saveAttendance } from './_lib/attendanceSheet.js'
 import * as lp from './_lib/launchpadSheet.js'
 import * as inc from './_lib/incubationSheet.js'
 import * as vac from './_lib/vacSheet.js'
@@ -48,8 +54,11 @@ const ROUTES = {
   'GET workspace': { fn: workspace, identity: true },
   'GET dashboard': { pillar: 'startup', fn: (s) => getDashboard(s.email) },
   'POST competitions': { pillar: 'startup', fn: (s, r) => saveCompetition(s.email, r.body) },
+  'GET mentors': { pillar: 'startup', fn: async () => ({ mentors: await getMentors() }) },
+  'GET mentor-assignments': { pillar: 'startup', fn: async (s) => ({ assignments: await getMentorAssignments(s.email) }) },
   'GET documents': { pillar: 'startup', fn: async (s) => ({ documents: await getDocuments(s.email) }) },
   'POST documents': { pillar: 'startup', fn: (s, r) => saveDocument(s.email, r.body) },
+  'GET attendance': { pillar: 'startup', fn: (s) => getAttendanceSummary(s.email) },
 
   'GET launchpad': { pillar: 'launchpad', fn: (s) => lp.getLaunchpad(s.email) },
   'POST launchpad/setup': { pillar: 'launchpad', fn: (s, r) => lp.setupStudent(s.email, r.body) },
@@ -57,6 +66,13 @@ const ROUTES = {
   'POST launchpad/profile': { pillar: 'launchpad', fn: (s, r) => lp.saveProfileField(s.email, r.body) },
   'POST launchpad/documents': { pillar: 'launchpad', fn: (s, r) => lp.submitDocument(s.email, r.body) },
   'POST launchpad/sessions': { pillar: 'launchpad', fn: (s, r) => lp.updateMySession(s.email, r.body) },
+
+  'GET launchpad/mentor': { fn: (s) => lp.mentorStudents(s.email) },
+  'GET launchpad/mentor/student': { fn: (s, r) => lp.mentorStudentDetail(s.email, { email: r.query.get('email') }) },
+  'POST launchpad/mentor/feedback': { fn: (s, r) => lp.mentorFeedback(s.email, r.body) },
+  'POST launchpad/mentor/schedule': { fn: (s, r) => lp.mentorSchedule(s.email, r.body) },
+  'POST launchpad/mentor/verify': { fn: (s, r) => lp.mentorVerifyDocument(s.email, r.body) },
+  'POST launchpad/mentor/signoff': { fn: (s, r) => lp.mentorSignOff(s.email, r.body) },
 
   'GET incubation': { pillar: 'incubation', fn: (s) => inc.getIncubation(s.email) },
   'POST incubation/profile': { pillar: 'incubation', fn: (s, r) => inc.updateProfile(s.email, r.body) },
@@ -86,6 +102,8 @@ const ROUTES = {
   'POST admin/launchpad/schedule': { admin: true, fn: (s, r) => lp.staffSchedule(r.body) },
   'POST admin/launchpad/verify': { admin: true, fn: (s, r) => lp.staffVerifyDocument(r.body) },
   'POST admin/launchpad/signoff': { admin: true, fn: (s, r) => lp.staffSignOff(s.name, r.body) },
+  'GET admin/attendance': { admin: true, fn: (s, r) => (r.query.get('session') ? adminAttendanceRoster(r.query.get('session')) : adminAttendanceSessions()) },
+  'POST admin/attendance': { admin: true, fn: (s, r) => saveAttendance(r.body) },
   'GET admin/content': { admin: true, fn: (s, r) => content.listContent(r.query.get('tab') || 'Competitions') },
   'POST admin/content': { admin: true, fn: (s, r) => content.saveContent(r.body) },
   'POST admin/content/delete': { admin: true, fn: (s, r) => content.deleteContent(r.body) },

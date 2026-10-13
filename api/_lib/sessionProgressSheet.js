@@ -7,7 +7,7 @@ import { getCohortSessions, warmStartup } from './dashboardSheet.js'
 const TAB = 'SessionProgress'
 
 // Session ids come from the cohort sessions tab.
-const validSessionIds = async () => new Set((await getCohortSessions()).map((s) => s.id))
+const validSessionIds = async () => new Set((await getCohortSessions('', true)).map((s) => s.id))
 export const isValidSessionId = async (id) => (await validSessionIds()).has(id)
 
 function parseScore(v) {

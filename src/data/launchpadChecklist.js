@@ -83,7 +83,7 @@ export function phasesWithStatus(checked) {
 // The phase the student is working in; null once all four are done.
 export const currentPhase = (phases) => phases.find((p) => p.status === 'current') || null
 export const allPhasesDone = (phases) => phases.every((p) => p.status === 'done')
-// Profile Ready = Phase 4 done (so all four, by construction) AND the Launchpad team signed off.
+// Profile Ready = Phase 4 done (so all four, by construction) AND a mentor signed off.
 export const isProfileReady = (phases, signoff) => allPhasesDone(phases) && Boolean(signoff?.profileReady)
 
 export const tasksDone = (checked) => ALL_ITEMS.filter((it) => checked[it.id]).length
@@ -170,14 +170,14 @@ export const DOCUMENTS = [
   { id: 'resume', name: 'Resume / CV', hint: 'One page. Lead with the startup.' },
   { id: 'pitch-deck', name: 'Pitch deck', hint: '10–12 slides, shared as a view link.' },
   { id: 'recommendation-1', name: 'Recommendation letter 1', hint: 'From a teacher who knows your work.' },
-  { id: 'recommendation-2', name: 'Recommendation letter 2', hint: 'From a user, community leader or industry contact.' },
+  { id: 'recommendation-2', name: 'Recommendation letter 2', hint: 'From a mentor, user or community leader.' },
   { id: 'certificates', name: 'Certificates', hint: 'One folder link with competition / course certificates.' },
   { id: 'startup-demo', name: 'Startup demo', hint: 'The 2-minute demo video or a live link.' },
 ]
 export const DOCUMENT_IDS = new Set(DOCUMENTS.map((d) => d.id))
 
 // Everything derived from one student's rows ({ checked, profile, student, signoff }), in one
-// place, so Overview, the rail, the sidebar card, My Journey and the admin review never disagree.
+// place, so Overview, the rail, the sidebar card, My Journey and the mentor view never disagree.
 export function deriveLaunchpad(data) {
   const phases = phasesWithStatus(data.checked)
   return {
@@ -193,7 +193,7 @@ export function profileReadySeal(phases, profileReady, signoff) {
   const caption = profileReady
     ? `Signed off${signoff?.signedBy ? ` · ${signoff.signedBy.split(' ')[0]}` : ''}`
     : allPhasesDone(phases)
-    ? 'Awaiting sign-off'
+    ? 'Awaiting mentor'
     : 'Locked'
   return { label: 'Profile Ready', unlocked: profileReady, caption }
 }

@@ -23,7 +23,7 @@ export default function EnrollView({ courses, save }) {
   const disabled = state?.saving
   return (
     <Page>
-      <ViewHeader eyebrow="Welcome to VAC Learner" title="Enrol in your course." subtitle="Pick the course and batch you are taking. Your schedule, content and assignments open as soon as you enrol." />
+      <ViewHeader eyebrow="Welcome to VAC Learner" title="Enrol in your course." subtitle="Pick the course and batch you are taking. Your schedule, attendance, content and assignments open as soon as you enrol." />
       {!courses.length ? (
         <motion.div variants={viewItem} className="mt-10 max-w-xl">
           <EmptyNote>No VAC course has classes scheduled yet. Once the Hub team adds yours, you can enrol here.</EmptyNote>

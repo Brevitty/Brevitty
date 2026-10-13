@@ -4,11 +4,12 @@ import { allRows, rowsFor, upsert, patchWhere, append, warm } from './pillarStor
 import { fail, istToday, sameEmail, cleanText } from './consulting/rules.js'
 import { checkUploaded, removeFile } from './files.js'
 import { isDemoEmail, DEMO_VAC_BATCH } from './accounts.js'
-import { certificateStatus, ASSIGNMENT_DONE, FEEDBACK_AREAS, RATING_MAX } from '../../src/data/vacRules.js'
+import { attendanceSummary, certificateStatus, ASSIGNMENT_DONE, FEEDBACK_AREAS, RATING_MAX } from '../../src/data/vacRules.js'
 
 export const VAC_TABS = {
   VAC_Learners: ['email', 'name', 'roll_no', 'program', 'semester', 'course', 'batch', 'faculty'],
   VAC_Sessions: ['session_id', 'date', 'time', 'title', 'course', 'batch'],
+  VAC_Attendance: ['email', 'session_id', 'status'],
   VAC_Content: ['course', 'title', 'format', 'status', 'link'],
   VAC_Assignments: ['assignment_id', 'email', 'title', 'due', 'status', 'link'],
   VAC_Feedback: ['email', 'area', 'rating', 'comment', 'submitted_date'],
@@ -20,9 +21,10 @@ const same = (a, b) => String(a).trim().toLowerCase() === String(b).trim().toLow
 export async function getVac(email) {
   const today = istToday()
   await warm(Object.keys(VAC_TABS))
-  const [[learner], sessionRows, contentRows, assignmentRows, feedbackRows] = await Promise.all([
+  const [[learner], sessionRows, attendanceRows, contentRows, assignmentRows, feedbackRows] = await Promise.all([
     rowsFor('VAC_Learners', email),
     allRows('VAC_Sessions'),
+    rowsFor('VAC_Attendance', email),
     allRows('VAC_Content'),
     rowsFor('VAC_Assignments', email),
     rowsFor('VAC_Feedback', email),
@@ -33,6 +35,8 @@ export async function getVac(email) {
         .map(({ session_id, date, time, title }) => ({ session_id, date, time, title }))
         .sort((a, b) => `${a.date}${a.time}`.localeCompare(`${b.date}${b.time}`))
     : []
+  const attendance = Object.fromEntries(attendanceRows.map((a) => [a.session_id, a.status.toLowerCase()]))
+  const summary = attendanceSummary(sessions, attendance, today)
   const assignments = assignmentRows
     .map(({ assignment_id, title, due, status, link }) => ({ assignment_id, title, due, status: (status || 'pending').toLowerCase(), link }))
     .sort((a, b) => a.due.localeCompare(b.due))
@@ -40,11 +44,12 @@ export async function getVac(email) {
   return {
     today,
     learner: learner ? { ...learner, email: undefined } : null,
-    sessions: sessions.map((s) => ({ ...s, status: s.date < today ? 'past' : 'upcoming' })),
+    sessions: sessions.map((s) => ({ ...s, status: attendance[s.session_id] || (s.date < today ? 'absent' : 'upcoming') })),
+    summary,
     content: learner ? contentRows.filter((c) => c.title && same(c.course, learner.course)).map(({ title, format, status, link }) => ({ title, format, status, link })) : [],
     assignments,
     feedback: Object.fromEntries(feedbackRows.map((f) => [f.area, { rating: Number(f.rating) || null, comment: f.comment, submittedDate: f.submitted_date }])),
-    certificate: certificateStatus(assignments),
+    certificate: certificateStatus(summary, assignments),
     nextClass: sessions.find((s) => s.date >= today) || null,
     nextAssignment: assignments.find((a) => !ASSIGNMENT_DONE.includes(a.status)) || null,
     courses: learner ? [] : openCourses(sessionRows, email),

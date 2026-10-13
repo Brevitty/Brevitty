@@ -79,7 +79,7 @@ function SessionRow({ session, index, progress, onSaveProgress }) {
           </span>
         </div>
         <p className="mt-1 text-sm text-black/55">
-          {session.date}{session.time ? ` · ${session.time}` : ''}
+          {session.date}{session.mentor ? ` — with ${session.mentor}` : ''}
         </p>
         {isPast && session.summary && <p className="mt-3 text-sm leading-relaxed text-black/65">{session.summary}</p>}
         {isPast && session.actionItem && (
@@ -125,7 +125,7 @@ export default function SessionsView({ sessions, onUnauthorized }) {
   return (
     <motion.div variants={viewContainer} initial="hidden" animate="show" className="p-6 lg:p-10">
       <motion.p variants={viewItem} className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">
-        Cohort sessions
+        Mentor sessions
       </motion.p>
       <motion.h2 variants={viewItem} className="mt-4 font-display text-3xl font-bold tracking-tight text-ink sm:text-4xl">
         Upcoming and past sessions.
