@@ -2,13 +2,14 @@
 // The Gemini API key is read from process.env.GEMINI_API_KEY and NEVER leaves
 // the server. The client calls THIS endpoint (/api/generate), never Google.
 //
-// ⚠️ SECURITY NOTE: The toolkit's login gate is a non-secure demo only. In
-// production this route must sit behind real authentication. The in-memory
-// rate limit below is best-effort cost protection (serverless instances are
-// ephemeral, so counters reset on cold starts) — replace with a durable store
-// (e.g. Upstash/Redis) before any real launch.
+// Gated by requireMembership(..., 'startup') below — only accounts with an
+// approved startup membership can call this. The in-memory rate limit is
+// still best-effort cost protection (serverless instances are ephemeral, so
+// counters reset on cold starts) — replace with a durable store (e.g.
+// Upstash/Redis) before any real launch.
 
 import { TOOL_PROMPTS, BUILDER_TOOL_IDS } from './_lib/prompts.js'
+import { requireMembership } from './_lib/session.js'
 
 const MODEL = 'gemini-2.5-flash'
 const MAX_INPUT_CHARS = 4000
@@ -42,6 +43,8 @@ function clientIp(req) {
 }
 
 export default async function handler(req, res) {
+  if (!(await requireMembership(req, res, 'startup'))) return
+
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
     return res.status(405).json({ error: 'Method not allowed.' })

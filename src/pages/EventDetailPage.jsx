@@ -41,7 +41,8 @@ export default function EventDetailPage() {
   const grad = TYPE_GRADIENT[event.type] || ['#f97316', '#db2777']
   const capacity = event.registered + event.seatsLeft
   const fillPct = event.completed ? 100 : Math.round((event.registered / capacity) * 100)
-  const low = !event.completed && event.seatsLeft <= LOW_SEATS
+  const hasCounts = event.seatsLeft != null
+  const low = hasCounts && !event.completed && event.seatsLeft <= LOW_SEATS
 
   return (
     <>
@@ -190,7 +191,8 @@ export default function EventDetailPage() {
                   </div>
                 ))}
 
-              {/* live headcount */}
+              {/* live headcount — hidden when the organiser publishes no counts */}
+              {hasCounts && (<>
               <div className="flex items-center justify-between">
                 <span className="inline-flex items-center gap-1.5 text-sm font-medium text-black/60">
                   <span className="relative flex h-2.5 w-2.5">
@@ -221,6 +223,7 @@ export default function EventDetailPage() {
                   ? 'This event has ended.'
                   : `${fillPct}% full · ${capacity} capacity`}
               </p>
+              </>)}
 
               {event.completed ? (
                 <div className="mt-6 rounded-full bg-black/5 py-3.5 text-center text-sm font-semibold text-black/40">

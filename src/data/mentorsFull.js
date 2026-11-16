@@ -217,7 +217,7 @@ const DEFAULT_MENTORS = [
     tags: ['Fundraising', 'Finance', 'Pitch'],
     gradient: ['#f97316', '#6366f1'],
     companies: ['Brevitty Incubation Hub', 'Neos Angels', 'Headstart'],
-    photo:"akshayKedia.png",
+    photo: '/ajin-sir.png',
     quote: 'A great deck is just clear thinking that happens to be on slides.',
     bio: [
       'I’m an international finance major — B.Com Honours and ACCA — and I run the Brevitty Incubation Hub, where I spend my days in the trenches with early founders.',

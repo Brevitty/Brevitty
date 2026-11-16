@@ -1,7 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import HeroBackground from "./HeroBackground.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
+// Same Google Form the site-wide "Apply Now" CTAs use; change here to repoint the hero.
+const REGISTER_URL = "https://forms.gle/JhuGFUnYRthAJFyc9";
 const MotionLink = motion(Link);
 const ease = [0.22, 1, 0.36, 1];
 
@@ -23,6 +26,7 @@ const pop = {
 };
 
 export default function Hero() {
+  const { status } = useAuth();
   return (
     <section
       id="home"
@@ -76,33 +80,41 @@ export default function Hero() {
         {/* CTAs */}
         <motion.div
           variants={pop}
-          className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:gap-4"
+          className="mt-10 flex items-center justify-center"
         >
-          <motion.a
-            href="https://forms.gle/JhuGFUnYRthAJFyc9"
-            target="_blank"
-            rel="noopener noreferrer"
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.97 }}
-            className="group inline-flex items-center gap-2 rounded-full bg-orange px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(249,115,22,0.6)] transition-shadow hover:shadow-[0_14px_40px_-8px_rgba(249,115,22,0.7)]"
-          >
-            Apply Now
-            <span className="transition-transform duration-300 group-hover:translate-x-1">
-              →
-            </span>
-          </motion.a>
+          {status === "signedIn" ? (
+            <MotionLink
+              to="/hub"
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              className="group inline-flex items-center gap-2 rounded-full bg-orange px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(249,115,22,0.6)] transition-shadow hover:shadow-[0_14px_40px_-8px_rgba(249,115,22,0.7)]"
+            >
+              Continue to your workspace
+              <span className="transition-transform duration-300 group-hover:translate-x-1">
+                →
+              </span>
+            </MotionLink>
+          ) : (
+            <motion.a
+              href={REGISTER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              whileHover={{ scale: 1.03, y: -1 }}
+              whileTap={{ scale: 0.97 }}
+              // while the session check is in flight keep the space but show nothing, so the CTA never flashes
+              aria-hidden={status === "checking" || undefined}
+              tabIndex={status === "checking" ? -1 : undefined}
+              className={`group inline-flex items-center gap-2 rounded-full bg-orange px-7 py-3.5 text-sm font-semibold text-white shadow-[0_10px_30px_-10px_rgba(249,115,22,0.6)] transition-shadow hover:shadow-[0_14px_40px_-8px_rgba(249,115,22,0.7)] ${
+                status === "checking" ? "invisible" : ""
+              }`}
+            >
+              Register Now
+              <span className="transition-transform duration-300 group-hover:translate-x-1">
+                →
+              </span>
+            </motion.a>
+          )}
 
-          <MotionLink
-            to="/startup-junction"
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.97 }}
-            className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/60 px-7 py-3.5 text-sm font-semibold text-ink backdrop-blur-sm transition-colors hover:border-black/30 hover:bg-white"
-          >
-            Startup Junction 2026
-            <span className="transition-transform duration-300 group-hover:translate-x-1">
-              →
-            </span>
-          </MotionLink>
         </motion.div>
 
         {/* trust strip */}

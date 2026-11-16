@@ -1,9 +1,19 @@
 @import 'tailwindcss';
 
+/* Class-based dark mode (not prefers-color-scheme): the Startup Junction
+   dashboard toggles a "dark" class on its own root wrapper, not <html>, so
+   the rest of the site (marketing pages, sign-in) is unaffected. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-orange: #f97316;
   --color-orange-soft: #fb923c;
   --color-ink: #0a0a0a;
+  /* Card/panel surface color. Not `white`: in the dashboard, `white` is also
+     used as literal contrast text/icon color on dark or orange chips
+     (text-white), which must NOT flip in dark mode — only card backgrounds
+     (bg-*) should. Kept as its own token so the two never collide. */
+  --color-surface: #ffffff;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
@@ -13,6 +23,25 @@
 
 :root {
   color-scheme: light;
+}
+
+/* Dashboard dark mode: redefine the shared color tokens so every existing
+   bg-surface / text-ink / text-black/border-black/bg-black-opacity utility
+   in the dashboard flips automatically — no per-component restyling needed.
+   Scoped to .dark (the dashboard's own wrapper), so nothing outside it is
+   affected. orange / orange-soft are deliberately NOT overridden — the
+   accent stays identical in both modes. */
+.dark {
+  color-scheme: dark;
+  /* Elevation tier for cards/sidebar — one step lighter than the page
+     background (JunctionDashboard's wrapper sets that separately, to
+     #0c0a08), so surfaces read as sitting above the page instead of a flat
+     single-tone flip. Warm-tinted (R>G>B), not the cooler #08070a used
+     elsewhere in the app pre-login — intentional cast toward the orange
+     accent rather than a neutral near-black. */
+  --color-surface: #171310;
+  --color-black: #fafaf8; /* flips text-black/*, border-black/*, bg-black/[…] */
+  --color-ink: #fafaf8; /* flips text-ink (headings) to near-white */
 }
 
 * {

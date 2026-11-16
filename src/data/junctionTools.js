@@ -117,4 +117,3 @@ export const BUILDER_TOOL_IDS = new Set(
 
 export const TOOL_IDS = TOOLS.map((t) => t.id)
 
-export const getTool = (id) => TOOLS.find((t) => t.id === id)

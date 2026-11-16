@@ -8,7 +8,7 @@ import EventCard from '../components/events/EventCard.jsx'
 
 const ease = [0.22, 1, 0.36, 1]
 
-function GridIcon({ active }) {
+function GridIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
       <rect x="3" y="3" width="7" height="7" rx="1.5" />

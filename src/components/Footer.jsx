@@ -1,10 +1,8 @@
 import { motion } from 'framer-motion'
-import { Link } from 'react-router-dom'
 
 const ease = [0.22, 1, 0.36, 1]
 
 // Quick-link label → app route.
-const QUICK_LINK_TO = (label) => (label === 'Home' ? '/' : `/${label.toLowerCase()}`)
 
 const reveal = {
   hidden: { opacity: 0, y: 36 },
@@ -25,7 +23,6 @@ const stripItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.5, ease } },
 }
 
-// const QUICK_LINKS = ['Home', 'About', 'Community', 'Events', 'Mentors', 'Partners']
 
 const SOCIALS = [
   {
@@ -113,29 +110,6 @@ export default function Footer() {
               </form>
             </motion.div>
 
-            {/* Quick links */}
-            {/* <motion.div
-              variants={reveal}
-              custom={1}
-              className="md:col-span-3"
-            >
-              <h4 className="text-[11px] font-medium tracking-[0.18em] text-black/45">
-                EXPLORE
-              </h4>
-              <ul className="mt-5 space-y-3">
-                {QUICK_LINKS.map((link) => (
-                  <li key={link}>
-                    <Link
-                      to={QUICK_LINK_TO(link)}
-                      className="group inline-flex items-center text-sm text-black/65 transition-colors hover:text-ink"
-                    >
-                      <span className="mr-0 h-px w-0 bg-orange transition-all duration-300 group-hover:mr-2 group-hover:w-4" />
-                      {link}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </motion.div> */}
             <motion.div
               className="md:col-span-3"
             ></motion.div>

@@ -1,6 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext.jsx'
+import ChangePasswordModal from './junction/ChangePasswordModal.jsx'
+
+// Same Google Form as the hero's Register Now button.
+const REGISTER_URL = 'https://forms.gle/JhuGFUnYRthAJFyc9'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -101,8 +106,82 @@ function Ticker({ time, small = false }) {
   )
 }
 
+function initialsOf(user) {
+  const source = (user?.name || user?.email || '?').trim()
+  const words = source.split(/\s+/)
+  const letters = words.length > 1 ? words[0][0] + words[1][0] : source.slice(0, 1)
+  return letters.toUpperCase()
+}
+
+// Desktop avatar + dropdown: My workspace / Change password / Sign out.
+function AccountMenu({ user, onChangePassword, onSignOut }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  const buttonRef = useRef(null)
+  const { pathname } = useLocation()
+
+  useEffect(() => setOpen(false), [pathname])
+
+  useEffect(() => {
+    if (!open) return
+    const onDown = (e) => !wrapRef.current?.contains(e.target) && setOpen(false)
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setOpen(false)
+        buttonRef.current?.focus()
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  const item =
+    'block w-full px-4 py-2.5 text-left text-[12px] font-medium tracking-[0.08em] text-black/75 transition-colors hover:bg-black/[0.04] hover:text-black'
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-ink font-mono text-[11px] font-semibold text-white outline-none transition-shadow hover:shadow-[0_0_0_3px_rgba(249,115,22,0.35)] focus-visible:ring-4 focus-visible:ring-orange/40"
+      >
+        {initialsOf(user)}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-3 w-52 overflow-hidden rounded-2xl border border-black/10 bg-white py-1.5 shadow-[0_24px_48px_-20px_rgba(0,0,0,0.3)]"
+        >
+          <p className="truncate border-b border-black/10 px-4 pb-2 pt-1.5 text-[11px] text-black/50">{user?.email}</p>
+          <Link role="menuitem" to="/hub" className={item}>
+            My workspace
+          </Link>
+          {user?.canChangePassword && (
+            <button role="menuitem" type="button" onClick={() => { setOpen(false); onChangePassword() }} className={item}>
+              Change password
+            </button>
+          )}
+          <button role="menuitem" type="button" onClick={() => { setOpen(false); onSignOut() }} className={item}>
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Navbar() {
   const time = useIndiaTime()
+  const { status, user, refresh, signOut } = useAuth()
+  const [changingPassword, setChangingPassword] = useState(false)
   const [open, setOpen] = useState(false)
   const { pathname } = useLocation()
 
@@ -169,6 +248,31 @@ export default function Navbar() {
                 )}
               </li>
             ))}
+            {/* auth slot: while checking, reserve the space but render nothing so the header doesn't jump */}
+            {status === 'checking' && <li aria-hidden="true" className="h-9 w-[5.5rem]" />}
+            {status === 'signedOut' && (
+              <li>
+                <Link
+                  to="/signin"
+                  className="inline-flex h-9 items-center rounded-full border border-black/15 px-5 text-[11px] font-medium tracking-[0.16em] text-black/80 transition-colors hover:border-orange hover:text-black"
+                >
+                  SIGN IN
+                </Link>
+              </li>
+            )}
+            {status === 'signedIn' && (
+              <>
+                <li>
+                  <Link to="/hub" className={linkClass}>
+                    MY WORKSPACE
+                    {underline}
+                  </Link>
+                </li>
+                <li>
+                  <AccountMenu user={user} onChangePassword={() => setChangingPassword(true)} onSignOut={signOut} />
+                </li>
+              </>
+            )}
           </ul>
 
           {/* Right — mobile hamburger */}
@@ -191,7 +295,7 @@ export default function Navbar() {
             animate={{ y: 0 }}
             exit={{ y: '-100%' }}
             transition={{ type: 'spring', stiffness: 260, damping: 30 }}
-            className="fixed inset-0 z-40 flex flex-col bg-white md:hidden"
+            className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-white md:hidden"
           >
             {/* subtle orange grain */}
             <div className="noise-bg pointer-events-none absolute inset-0 opacity-[0.04]" />
@@ -240,14 +344,59 @@ export default function Navbar() {
             >
               <Ticker time={time} small />
 
+              {status === 'signedOut' && (
+                <Link
+                  to="/signin"
+                  onClick={() => setOpen(false)}
+                  className="w-full max-w-xs rounded-full border border-black/20 py-3.5 text-center text-sm font-semibold text-ink"
+                >
+                  Sign in
+                </Link>
+              )}
+              {status === 'signedIn' && (
+                <div className="flex w-full max-w-xs flex-col items-center gap-3">
+                  <Link
+                    to="/hub"
+                    onClick={() => setOpen(false)}
+                    className="w-full rounded-full border border-black/20 py-3.5 text-center text-sm font-semibold text-ink"
+                  >
+                    My workspace
+                  </Link>
+                  <div className="flex items-center gap-6 text-sm font-medium text-black/60">
+                    {user?.canChangePassword && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpen(false)
+                          setChangingPassword(true)
+                        }}
+                        className="min-h-[44px]"
+                      >
+                        Change password
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpen(false)
+                        signOut()
+                      }}
+                      className="min-h-[44px]"
+                    >
+                      Sign out
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <a
-                href="https://forms.gle/JhuGFUnYRthAJFyc9"
+                href={REGISTER_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => setOpen(false)}
                 className="w-full max-w-xs rounded-full bg-orange py-3.5 text-center text-sm font-semibold text-white shadow-[0_14px_34px_-12px_rgba(249,115,22,0.7)]"
               >
-                Apply Now →
+                Register Now →
               </a>
 
               <div className="flex items-center gap-6">
@@ -270,6 +419,17 @@ export default function Navbar() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* outside <header>: its backdrop-filter would otherwise trap this fixed overlay */}
+      {changingPassword && (
+        <ChangePasswordModal
+          onClose={() => setChangingPassword(false)}
+          onExpired={() => {
+            setChangingPassword(false)
+            refresh() // /api/me now says 401 -> header flips to signed-out
+          }}
+        />
+      )}
     </>
   )
 }

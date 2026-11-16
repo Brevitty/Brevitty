@@ -5,7 +5,7 @@ import JunctionMarkdown from './JunctionMarkdown.jsx'
 
 const ease = [0.22, 1, 0.36, 1]
 
-export default function ToolDetailView({ tool, onBack }) {
+export default function ToolDetailView({ tool, onBack, onUnauthorized }) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState('')
@@ -24,9 +24,11 @@ export default function ToolDetailView({ tool, onBack }) {
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
+        credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toolId: tool.id, input: input.trim() }),
       })
+      if (res.status === 401) return onUnauthorized()
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Something went wrong.')
       setResult(data.markdown || '')
@@ -84,7 +86,7 @@ export default function ToolDetailView({ tool, onBack }) {
               {tool.chips.map((c) => (
                 <span
                   key={c}
-                  className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-medium text-black/65"
+                  className="rounded-full border border-black/10 bg-surface px-3 py-1.5 text-xs font-medium text-black/65"
                 >
                   {c}
                 </span>
@@ -108,7 +110,7 @@ export default function ToolDetailView({ tool, onBack }) {
 
         {/* right — input + result */}
         <div>
-          <div className="rounded-2xl border border-black/10 bg-white p-5 transition-colors focus-within:border-orange/40">
+          <div className="rounded-2xl border border-black/10 bg-surface p-5 transition-colors focus-within:border-orange/40">
             <div className="flex items-center justify-between">
               <label
                 htmlFor="tool-input"
@@ -201,7 +203,7 @@ export default function ToolDetailView({ tool, onBack }) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5, ease }}
-                className="mt-6 rounded-2xl border border-black/10 bg-[#fafaf8] p-6 sm:p-8"
+                className="mt-6 rounded-2xl border border-black/10 bg-[#fafaf8] dark:bg-white/[0.04] p-6 sm:p-8"
               >
                 <p className="mb-5 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-orange">
                   Result

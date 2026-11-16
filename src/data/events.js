@@ -1,83 +1,135 @@
 import { registerCollection, getCollection } from './store.js'
 
-// Real Jaipur startup / business events (verified June 2026). Each event links out to
-// its official registration / event page via `registerUrl` — that's what the
-// "Register Now" button opens. `seatsLeft` drives FOMO; capacity = registered + seatsLeft.
+// Fetched 2026-11-16 from each event's official page (refresh after the soonest date passes).
+// `registerUrl` is what the "Register Now" button opens. `registered` / `seatsLeft` are null
+// for these: the organisers don't publish counts, so the UI hides them. Sorted soonest first;
+// recurring (startsAt: null) meetups follow.
 const DEFAULT_EVENTS = [
   {
-    slug: 'startup-samvad-investor-confluence',
-    name: 'VCs & Investors Confluence — Startup Samvad',
-    type: 'Summit',
-    dateLabel: 'July 3, 2026',
-    time: '10:00 AM – 2:00 PM',
-    startsAt: '2026-07-03T10:00:00+05:30',
-    location: 'Rajasthan International Center, Jaipur',
+    slug: 'bengaluru-tech-summit-2026',
+    name: 'Bengaluru Tech Summit 2026',
+    type: 'Conference',
+    dateLabel: '17–19 Nov 2026',
+    time: '9:00 AM – 6:00 PM',
+    startsAt: '2026-11-17T09:00:00+05:30',
+    location: 'BIEC, Bengaluru',
     image:
       'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80',
-    registerUrl:
-      'https://allevents.in/jaipur/vcs-and-investors-confluence-startup-samvad-tickets/80001463556526',
-    registered: 184,
-    seatsLeft: 12,
+    registerUrl: 'https://www.bengalurutechsummit.com/bts-2026-f6s/index.php',
+    registered: null,
+    seatsLeft: null,
     completed: false,
-    short: 'Founders, VCs and angels from across India, under one roof for a day.',
+    short: 'Asia’s largest integrated tech event — theme “AI & Beyond”.',
     description:
-      'Startup Samvad brings together leading founders, prominent venture capitalists, angel investors and startup ecosystem leaders from across India. A day of curated conversations, investor connects and dealflow for Jaipur’s early-stage founders.',
-    agenda: [
-      { time: '10:00 AM', title: 'Registration & founder networking' },
-      { time: '11:00 AM', title: 'Investor panels & fireside chats' },
-      { time: '12:30 PM', title: 'Founder ↔ investor connects' },
-      { time: '01:30 PM', title: 'Closing networking lunch' },
-    ],
+      'Bengaluru Tech Summit 2026 brings together global companies, startups, investors and policymakers around the theme “AI & Beyond”. Co-hosted with STPI and K-tech. Registration is via the F6S link.',
   },
   {
-    slug: 'stesi-2026',
-    name: 'STESI 2026 — Smart Technologies Conference',
+    slug: 'tiecon-delhi-ncr-2026',
+    name: 'TiEcon Delhi-NCR 2026',
     type: 'Conference',
-    dateLabel: 'July 22–23, 2026',
-    time: '09:00 AM – 6:00 PM',
-    startsAt: '2026-07-22T09:00:00+05:30',
-    location: 'Manipal University, Jaipur',
+    dateLabel: '2–3 Dec 2026',
+    time: 'See event page',
+    startsAt: '2026-12-02T09:00:00+05:30',
+    location: 'India Habitat Centre, New Delhi',
     image:
       'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
-    registerUrl:
-      'https://allevents.in/jaipur/stesi-2026-international-conference-on-smart-technologies-for-energy-sustainability-and-industry/200029982068025',
-    registered: 96,
-    seatsLeft: 40,
+    registerUrl: 'https://events.tie.org/Delhi-NCR/tiecondelhincr',
+    registered: null,
+    seatsLeft: null,
     completed: false,
-    short: 'International conference on smart tech for energy, sustainability & industry.',
+    short: 'TiE Delhi-NCR’s two-day entrepreneurship conference: “Growth Engines of Tomorrow”.',
     description:
-      'STESI 2026 is an international conference spanning seven research tracks — smart grids, IoT, AI, materials science and energy policy — connecting deep-tech founders, researchers and industry over two days at Manipal University Jaipur.',
-    agenda: [
-      { time: '09:00 AM', title: 'Inauguration & keynote' },
-      { time: '11:00 AM', title: 'Parallel research tracks' },
-      { time: '02:00 PM', title: 'Industry & startup sessions' },
-      { time: '05:00 PM', title: 'Networking & awards' },
-    ],
+      'A two-day entrepreneurship conference by TiE Delhi-NCR bringing together founders, investors, corporates and policymakers, themed “Growth Engines of Tomorrow”.',
   },
   {
-    slug: 'shopping-centres-next-2026',
-    name: 'Shopping Centres Next 2026',
-    type: 'Conference',
-    dateLabel: 'July 23–24, 2026',
-    time: '09:00 AM – 9:00 PM',
-    startsAt: '2026-07-23T09:00:00+05:30',
-    location: 'Jaipur Marriott Hotel',
+    slug: 'entrepreneurs-mixer-jaipur',
+    name: 'Entrepreneur’s Mixer (Jaipur)',
+    type: 'Networking',
+    dateLabel: '5 Dec 2026',
+    time: '5:00 PM – 6:00 PM',
+    startsAt: '2026-12-05T17:00:00+05:30',
+    location: 'Everest Colony, Lalkothi, Jaipur',
     image:
-      'https://images.unsplash.com/photo-1567958451986-2de427a4a0be?auto=format&fit=crop&w=1200&q=80',
-    registerUrl:
-      'https://allevents.in/jaipur/shopping-centres-next-2026-retail-real-estate-conference-india/80002163942756',
-    registered: 142,
-    seatsLeft: 58,
+      'https://images.unsplash.com/photo-1531058020387-3be344556be6?auto=format&fit=crop&w=1200&q=80',
+    registerUrl: 'https://allevents.in/jaipur/entrepreneurs-mixer-jaipur-tickets/80003939663530',
+    registered: null,
+    seatsLeft: null,
     completed: false,
-    short: 'Retail real estate conference for mall developers, D2C brands & retailers.',
+    short: 'Peer-to-peer mixer for Jaipur founders and early-stage entrepreneurs (ticketed, ₹392).',
     description:
-      'India’s retail real estate conference connecting top mall developers, retailers, D2C brands, leasing experts and innovators through conference sessions and an exhibition floor — a strong room for consumer and retail-tech founders.',
-    agenda: [
-      { time: '09:00 AM', title: 'Doors open & exhibition' },
-      { time: '10:30 AM', title: 'Keynotes & developer panels' },
-      { time: '02:00 PM', title: 'D2C & retail-tech showcase' },
-      { time: '06:00 PM', title: 'Networking evening' },
-    ],
+      'A curated networking mixer for founders and early-stage entrepreneurs in Jaipur — open networking and candid talk about building in a tier-2 city. Organised by Entrepreneurs Arch (per the AllEvents listing); venue: Pankaj Singhvi Marg, Everest Colony, Lalkothi, Jaipur.',
+  },
+  {
+    slug: 'tie-global-summit-2026',
+    name: 'TiE Global Summit 2026',
+    type: 'Summit',
+    dateLabel: '14–15 Dec 2026',
+    time: 'See event page',
+    startsAt: '2026-12-14T09:00:00+05:30',
+    location: 'Brilliant Convention Centre, Indore',
+    image:
+      'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80',
+    registerUrl: 'https://tieglobalsummit.org/registration/',
+    registered: null,
+    seatsLeft: null,
+    completed: false,
+    short: 'A global conversation on entrepreneurship, innovation and human progress.',
+    description:
+      'TiE Global Summit 2026, hosted by TiE Indore with the Government of Madhya Pradesh as Host State Partner.',
+  },
+  {
+    slug: 'bioasia-2027',
+    name: 'BioAsia 2027',
+    type: 'Conference',
+    dateLabel: '15–17 Feb 2027',
+    time: 'See event page',
+    startsAt: '2027-02-15T09:00:00+05:30',
+    location: 'HITEX, Hyderabad',
+    image:
+      'https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=1200&q=80',
+    registerUrl: 'https://bioasia.co.in/',
+    registered: null,
+    seatsLeft: null,
+    completed: false,
+    short: 'Asia’s largest life sciences & health-tech convention, hosted by Telangana.',
+    description:
+      'BioAsia 2027 “Beyond Boundaries”, hosted by the Government of Telangana. Delegate and startup registration was “opening soon” as of 2026-11-16 — the link goes to the event page.',
+  },
+  {
+    slug: 'startup-mahakumbh-6-2027',
+    name: 'Startup Mahakumbh 6.0',
+    type: 'Conference',
+    dateLabel: '12–13 Mar 2027',
+    time: 'See event page',
+    startsAt: '2027-03-12T09:00:00+05:30',
+    location: 'Bharat Mandapam, New Delhi',
+    image:
+      'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80',
+    registerUrl: 'https://startupmahakumbh.co.in/delegate',
+    registered: null,
+    seatsLeft: null,
+    completed: false,
+    short: 'Asia’s largest startup expo and conference for founders, investors and government.',
+    description:
+      'Startup Mahakumbh 6.0 at Bharat Mandapam, New Delhi, bringing together founders, investors, speakers and government officials.',
+  },
+  {
+    slug: 'startup-dangal-3-2027',
+    name: 'Startup Dangal 3.0',
+    type: 'Summit',
+    dateLabel: '12–13 Mar 2027',
+    time: 'See event page',
+    startsAt: '2027-03-12T09:00:00+05:30',
+    location: 'Bharat Mandapam, New Delhi',
+    image:
+      'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80',
+    registerUrl: 'https://startupdangal.com/application-process',
+    registered: null,
+    seatsLeft: null,
+    completed: false,
+    short: 'Startup pitch competition with funding up to ₹10 lakh.',
+    description:
+      'Startup Dangal 3.0 (AICRA): entrepreneurs pitch, get mentorship from industry experts and can win funding up to ₹10 lakh.',
   },
   {
     slug: 'startup-grind-jaipur',
