@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import HeroBackground from "./HeroBackground.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
+// Same Google Form the site-wide "Apply Now" CTAs use; change here to repoint the hero.
+const REGISTER_URL = "https://forms.gle/JhuGFUnYRthAJFyc9";
 const MotionLink = motion(Link);
 const ease = [0.22, 1, 0.36, 1];
 
@@ -78,7 +80,7 @@ export default function Hero() {
         {/* CTAs */}
         <motion.div
           variants={pop}
-          className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:gap-4"
+          className="mt-10 flex items-center justify-center"
         >
           {status === "signedIn" ? (
             <MotionLink
@@ -94,7 +96,7 @@ export default function Hero() {
             </MotionLink>
           ) : (
             <motion.a
-              href="https://forms.gle/JhuGFUnYRthAJFyc9"
+              href={REGISTER_URL}
               target="_blank"
               rel="noopener noreferrer"
               whileHover={{ scale: 1.03, y: -1 }}
@@ -106,24 +108,13 @@ export default function Hero() {
                 status === "checking" ? "invisible" : ""
               }`}
             >
-              Apply Now
+              Register Now
               <span className="transition-transform duration-300 group-hover:translate-x-1">
                 →
               </span>
             </motion.a>
           )}
 
-          <MotionLink
-            to="/startup-junction"
-            whileHover={{ scale: 1.03, y: -1 }}
-            whileTap={{ scale: 0.97 }}
-            className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white/60 px-7 py-3.5 text-sm font-semibold text-ink backdrop-blur-sm transition-colors hover:border-black/30 hover:bg-white"
-          >
-            Startup Junction 2026
-            <span className="transition-transform duration-300 group-hover:translate-x-1">
-              →
-            </span>
-          </MotionLink>
         </motion.div>
 
         {/* trust strip */}

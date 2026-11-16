@@ -50,7 +50,8 @@ function Meta({ event }) {
 }
 
 export default function EventCard({ event, index = 0, large = false, view = 'grid' }) {
-  const low = !event.completed && event.seatsLeft <= LOW_SEATS
+  const hasCounts = event.seatsLeft != null
+  const low = hasCounts && !event.completed && event.seatsLeft <= LOW_SEATS
   const grad = TYPE_GRADIENT[event.type] || ['#f97316', '#db2777']
   const side = index % 2 === 0 ? -1 : 1
 
@@ -82,7 +83,7 @@ export default function EventCard({ event, index = 0, large = false, view = 'gri
     </span>
   )
 
-  const seatsLine = event.completed ? (
+  const seatsLine = !hasCounts ? <span /> : event.completed ? (
     <span className="text-xs text-black/45">{event.registered} attended</span>
   ) : low ? (
     <span className="text-xs font-semibold text-red-500">
@@ -140,7 +141,7 @@ export default function EventCard({ event, index = 0, large = false, view = 'gri
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-black/55">
               <span className="flex items-center gap-1.5"><CalIcon /> {event.dateLabel}</span>
               <span className="flex items-center gap-1.5"><PinIcon /> {event.location}</span>
-              {!event.completed && <LiveCount n={event.registered} label="registered" />}
+              {hasCounts && !event.completed && <LiveCount n={event.registered} label="registered" />}
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-4">
@@ -185,7 +186,7 @@ export default function EventCard({ event, index = 0, large = false, view = 'gri
             <Meta event={event} />
           </div>
 
-          {!event.completed && (
+          {hasCounts && !event.completed && (
             <div className="mt-4 flex items-center gap-4">
               <LiveCount n={event.registered} label="registered" />
             </div>
