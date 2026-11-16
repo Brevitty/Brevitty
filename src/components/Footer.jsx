@@ -177,8 +177,11 @@ export default function Footer() {
       <div className="border-t border-black/10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-6 py-5 text-xs text-black/45 sm:flex-row lg:px-10">
           <span>© {new Date().getFullYear()} brevitty. All rights reserved.</span>
-          <span className="flex items-center gap-1.5">
-            Made by <a href='https://www.linkedin.com/in/parth-verma-576719371/' className='text-blue-500 font-semibold underline'>Parth Verma</a> <span className="text-orange">🧡</span>
+          <span className="flex flex-wrap items-center justify-center gap-1.5">
+            Made by{' '}
+            <a href='https://www.linkedin.com/in/parth-verma-576719371/' target="_blank" rel="noopener noreferrer" className='text-blue-500 font-semibold underline'>Parth Verma</a>
+            <span>and</span>
+            <a href='https://dweep.me' target="_blank" rel="noopener noreferrer" className='text-blue-500 font-semibold underline'>Dweep Shishodia</a> <span className="text-orange">🧡</span>
           </span>
         </div>
       </div>

@@ -74,7 +74,7 @@ export default function RegisterPage() {
       studentEmail: VERIFIED_CAMPUSES.includes(form.campus) ? form.studentEmail.trim().toLowerCase() : '',
     }
     // Leaving the verified path (e.g. changed campus) must not keep stale Step-2 answers.
-    const reset = clean.studentEmail ? {} : { department: '', course: '', semester: '', campusOfficialEmail: '' }
+    const reset = clean.studentEmail ? {} : { department: '', course: '', semester: '' }
     saveRegistration({ ...clean, ...reset })
     navigate(nextRoute({ ...form, ...clean, ...reset }))
   }

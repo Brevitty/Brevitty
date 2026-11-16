@@ -27,7 +27,7 @@ export const REGISTRATION_OPTIONS = {
   },
   'startup-arena': {
     title: 'Startup Arena',
-    description: 'A weekly pitching stage where selected student startups present to industry experts, get mentored and earn Bronze to Diamond recognition.',
+    description: 'A weekly pitching stage where selected student startups present to industry experts and get mentored.',
     success: "Registration received. We'll reach out about upcoming Startup Arena pitch slots.",
   },
   mentorship: {

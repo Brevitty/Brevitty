@@ -15,7 +15,6 @@ const EMPTY = {
   department: '',
   course: '',
   semester: '',
-  campusOfficialEmail: '',
 }
 
 function read(key) {
@@ -56,7 +55,7 @@ export const isVerifiedPath = (d) =>
   d.collegeStudent === 'Yes' && VERIFIED_CAMPUSES.includes(d.campus) && Boolean(d.studentEmail)
 
 export const hasStep2 = (d) =>
-  Boolean(d.studentEmail && d.department && d.course && d.semester && d.campusOfficialEmail)
+  Boolean(d.studentEmail && d.department && d.course && d.semester)
 
 // Where this visitor belongs, given what they've entered so far.
 export function nextRoute(d) {
