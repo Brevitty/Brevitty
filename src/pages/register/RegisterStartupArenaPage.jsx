@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import RegisterShell, { fieldInput, primaryButton, ORANGE_ON_LIGHT, FieldError } from '../../components/register/RegisterShell.jsx'
 import { Field, FileField } from '../../components/register/FormParts.jsx'
+import ApplicantFields from '../../components/register/ApplicantFields.jsx'
+import EligibilityGate from '../../components/register/EligibilityGate.jsx'
+import DonePanel from '../../components/register/DonePanel.jsx'
 import {
   REGISTRATION_OPTIONS,
   DECK_SECTIONS,
@@ -10,7 +13,8 @@ import {
   LIMITS,
   fileProblem,
 } from '../../data/registrationOptions.js'
-import { loadRegistration, markDone, submitStartupArena, hasStep1, hasStep2, isVerifiedPath } from '../../lib/registration.js'
+import { applicantErrors, applicantPayload, submitStartupArena } from '../../lib/registration.js'
+import { useApplicant } from '../../lib/useApplicant.js'
 
 const OPTION = REGISTRATION_OPTIONS['startup-arena']
 const ARENA_FILES = ['pitchDeck', 'logo']
@@ -56,9 +60,14 @@ function DeckFormatPanel() {
   )
 }
 
+// Startup Arena is for students of the four campuses: the gate asks first, then the form below renders.
 export default function RegisterStartupArenaPage() {
-  const saved = loadRegistration()
+  return <EligibilityGate option="startup-arena">{(campus) => <ArenaForm campus={campus} />}</EligibilityGate>
+}
+
+function ArenaForm({ campus }) {
   const honeypot = useRef(null)
+  const [applicant, patch] = useApplicant({ collegeStudent: 'Yes', campus })
   const [f, setF] = useState({ startupName: '', oneLiner: '', deckConfirmed: false })
   const [files, setFiles] = useState({ pitchDeck: null, logo: null })
   const [errors, setErrors] = useState({})
@@ -67,14 +76,15 @@ export default function RegisterStartupArenaPage() {
   const [serverError, setServerError] = useState('')
   const [doneMessage, setDoneMessage] = useState('')
 
-  // Verified campus students who finished Step 2 only; everyone else is sent back to where they belong.
-  if (!hasStep1(saved) || !isVerifiedPath(saved)) return <Navigate to="/register" replace />
-  if (!hasStep2(saved)) return <Navigate to="/register/details" replace />
-
-  const clear = (...keys) => setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !keys.includes(k))))
-  const set = (patch) => {
-    setF((s) => ({ ...s, ...patch }))
-    clear(...Object.keys(patch))
+  const dropErrors = (...keys) => setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !keys.includes(k))))
+  const changeApplicant = (changes) => {
+    patch(changes)
+    dropErrors(...Object.keys(changes))
+    setServerError('')
+  }
+  const set = (patchF) => {
+    setF((s) => ({ ...s, ...patchF }))
+    dropErrors(...Object.keys(patchF))
     setServerError('')
   }
   const pickFile = (field, file) => {
@@ -86,7 +96,7 @@ export default function RegisterStartupArenaPage() {
   const submit = async (e) => {
     e.preventDefault()
     if (phase !== 'idle') return
-    const found = validate(f, files)
+    const found = { ...applicantErrors(applicant, { gated: true }), ...validate(f, files) }
     setErrors(found)
     setServerError('')
     if (Object.keys(found).some((k) => found[k])) return // nothing is uploaded unless every field is valid
@@ -94,9 +104,8 @@ export default function RegisterStartupArenaPage() {
     setPhase('sending')
     setStepLabel('Uploading your files…')
     const details = { startupName: f.startupName, oneLiner: f.oneLiner, deckConfirmed: true }
-    const result = await submitStartupArena(saved, details, files, honeypot.current?.value || '', setStepLabel)
+    const result = await submitStartupArena(applicantPayload(applicant, { gated: true }), details, files, honeypot.current?.value || '', setStepLabel)
     if (result.status === 'ok' || result.status === 'already') {
-      markDone('startup-arena')
       setDoneMessage(result.status === 'ok' ? OPTION.success : result.message || "You're already registered for this one.")
       setPhase('done')
       return
@@ -105,26 +114,20 @@ export default function RegisterStartupArenaPage() {
     setPhase('idle')
   }
 
-  if (phase === 'done') {
-    return (
-      <RegisterShell step="Startup Arena" title="All set">
-        <div role="status" className="rounded-3xl border border-black/10 bg-white/90 p-7 text-center shadow-[0_40px_80px_-40px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-9">
-          <p className="text-base font-medium text-green-700">{doneMessage}</p>
-          <Link to="/register/student" className={`${primaryButton} mt-6`}>Back to options</Link>
-        </div>
-      </RegisterShell>
-    )
-  }
+  if (phase === 'done') return <DonePanel step={OPTION.title} message={doneMessage} />
 
   const sending = phase === 'sending'
   return (
-    <RegisterShell wide step="Startup Arena" title="Pitch at the Startup Arena" intro="Tell us about your startup and share your deck. Selected startups get a pitch slot.">
+    <RegisterShell wide step={OPTION.title} title="Pitch at the Startup Arena" intro="Tell us about yourself and your startup, and share your deck. Selected startups get a pitch slot.">
       <form noValidate onSubmit={submit} className="mx-auto max-w-2xl rounded-3xl border border-black/10 bg-white/90 p-7 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-9">
         {/* honeypot: off-screen, not focusable, ignored by assistive tech */}
         <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
           <label>Website<input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" /></label>
         </div>
 
+        <ApplicantFields value={applicant} onChange={changeApplicant} errors={errors} gated />
+
+        <p className="mt-6 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c2410c]">Your startup</p>
         <Field id="arena-name" label="Startup name" error={errors.startupName}>
           <input id="arena-name" value={f.startupName} maxLength={LIMITS.startupName} onChange={(e) => set({ startupName: e.target.value })} aria-invalid={Boolean(errors.startupName)} aria-describedby="arena-name-err" className={fieldInput} />
         </Field>
@@ -156,7 +159,7 @@ export default function RegisterStartupArenaPage() {
         <div role="alert" className="mt-1 min-h-[1.5rem] text-sm font-medium text-red-600">{serverError}</div>
 
         <div className="mt-2 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Link to="/register/student" className="text-center text-sm font-semibold text-black/60 underline-offset-4 hover:text-ink hover:underline">← Back</Link>
+          <Link to="/register" className="text-center text-sm font-semibold text-black/60 underline-offset-4 hover:text-ink hover:underline">← Back to options</Link>
           <button type="submit" disabled={sending} className={primaryButton}>
             {sending ? stepLabel || 'Registering…' : 'Register'}
             {!sending && <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>}

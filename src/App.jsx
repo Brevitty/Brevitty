@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react'
-import { Routes, Route, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import Navbar from './components/Navbar.jsx'
 import Footer from './components/Footer.jsx'
 import ScrollToTop from './components/ScrollToTop.jsx'
@@ -21,8 +21,7 @@ const ConsultingPage = lazy(() => import('./pages/ConsultingPage.jsx'))
 const SignInPage = lazy(() => import('./pages/SignInPage.jsx'))
 // Public registration flow (no auth gate, normal site chrome)
 const RegisterPage = lazy(() => import('./pages/register/RegisterPage.jsx'))
-const RegisterDetailsPage = lazy(() => import('./pages/register/RegisterDetailsPage.jsx'))
-const RegisterOptionsPage = lazy(() => import('./pages/register/RegisterOptionsPage.jsx'))
+const RegisterGrantsPage = lazy(() => import('./pages/register/RegisterGrantsPage.jsx'))
 const RegisterStartupJunctionPage = lazy(() => import('./pages/register/RegisterStartupJunctionPage.jsx'))
 const RegisterStartupArenaPage = lazy(() => import('./pages/register/RegisterStartupArenaPage.jsx'))
 const RegisterMentorshipPage = lazy(() => import('./pages/register/RegisterMentorshipPage.jsx'))
@@ -69,12 +68,14 @@ export default function App() {
           <Route path="/signin" element={<SignInPage />} />
           {/* Public registration: outside HubGate on purpose; each step guards itself via sessionStorage */}
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/register/details" element={<RegisterDetailsPage />} />
-          <Route path="/register/student" element={<RegisterOptionsPage variant="student" />} />
+          {/* The old multi-step flow no longer exists: send any bookmarked step to the options page. */}
+          <Route path="/register/details" element={<Navigate to="/register" replace />} />
+          <Route path="/register/student" element={<Navigate to="/register" replace />} />
+          <Route path="/register/open" element={<Navigate to="/register" replace />} />
           <Route path="/register/startup-junction" element={<RegisterStartupJunctionPage />} />
           <Route path="/register/startup-arena" element={<RegisterStartupArenaPage />} />
           <Route path="/register/mentorship" element={<RegisterMentorshipPage />} />
-          <Route path="/register/open" element={<RegisterOptionsPage variant="open" />} />
+          <Route path="/register/grants" element={<RegisterGrantsPage />} />
           {/* /hub/* : HubGate sends signed-out visitors to /signin?next=...; workspaces also check access server-side */}
           <Route path="/hub" element={<HubGate />}>
             <Route index element={<HubIndexPage />} />

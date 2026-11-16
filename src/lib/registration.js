@@ -1,73 +1,87 @@
-// Client-side state + API call for the public /register flow. The visitor's answers live in
-// sessionStorage only (cleared when the tab closes); nothing is stored until they pick an option.
-import { VERIFIED_CAMPUSES, EMAIL_RE, PHONE_RE, normalisePhone } from '../data/registrationOptions.js'
+// Client-side helpers for the public /register pages: applicant prefill, validation, and the API calls.
+// Each option page is ONE complete form that sends everything in a single request; the only thing kept in
+// sessionStorage is a convenience prefill of the applicant fields, so registering for a second option
+// doesn't mean retyping them. Nothing is stored server-side until a form is submitted.
+import { VERIFIED_CAMPUSES, OTHER_CAMPUS, EMAIL_RE, PHONE_RE, normalisePhone } from '../data/registrationOptions.js'
 
-const STORAGE_KEY = 'brevitty.registration.v1'
-const DONE_KEY = 'brevitty.registration.done.v1'
+const STORAGE_KEY = 'brevitty.applicant.v1'
 
-const EMPTY = {
+export const EMPTY_APPLICANT = {
   name: '',
-  collegeStudent: '', // 'Yes' | 'No'
-  campus: '',
   email: '',
   phone: '',
+  collegeStudent: '', // 'Yes' | 'No'
+  campus: '',
   studentEmail: '',
   department: '',
   course: '',
   semester: '',
 }
 
-function read(key) {
+/* ---- prefill (sessionStorage; cleared when the tab closes) ---- */
+
+export function loadApplicant() {
   try {
-    return JSON.parse(sessionStorage.getItem(key) || 'null')
+    const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null')
+    return { ...EMPTY_APPLICANT, ...(saved && typeof saved === 'object' ? saved : {}) }
   } catch {
-    return null // private mode / blocked storage / corrupt value
+    return { ...EMPTY_APPLICANT } // private mode / blocked storage / corrupt value
   }
 }
-function write(key, value) {
+export function saveApplicant(applicant) {
   try {
-    sessionStorage.setItem(key, JSON.stringify(value))
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(applicant))
   } catch {
-    /* storage unavailable: the flow still works within the open page, a refresh restarts it */
+    /* storage unavailable: forms still work, they just won't prefill */
   }
-}
-
-export const loadRegistration = () => ({ ...EMPTY, ...(read(STORAGE_KEY) || {}) })
-export const saveRegistration = (patch) => write(STORAGE_KEY, { ...loadRegistration(), ...patch })
-export const loadDone = () => read(DONE_KEY) || {}
-export const markDone = (option) => write(DONE_KEY, { ...loadDone(), [option]: true })
-export function clearRegistration() {
-  try {
-    sessionStorage.removeItem(STORAGE_KEY)
-    sessionStorage.removeItem(DONE_KEY)
-  } catch {
-    /* ignore */
-  }
-}
-
-/* ---- path logic (single source for the pages' guards) ---- */
-
-export const hasStep1 = (d) =>
-  Boolean(d.name && d.email && d.phone && (d.collegeStudent === 'No' || (d.collegeStudent === 'Yes' && d.campus)))
-
-// Campus student from one of the four campuses who gave a student email -> Step 2 + all four options.
-export const isVerifiedPath = (d) =>
-  d.collegeStudent === 'Yes' && VERIFIED_CAMPUSES.includes(d.campus) && Boolean(d.studentEmail)
-
-export const hasStep2 = (d) =>
-  Boolean(d.studentEmail && d.department && d.course && d.semester)
-
-// Where this visitor belongs, given what they've entered so far.
-export function nextRoute(d) {
-  if (!hasStep1(d)) return '/register'
-  if (isVerifiedPath(d)) return hasStep2(d) ? '/register/student' : '/register/details'
-  return '/register/open'
 }
 
 /* ---- validation (mirrors api/register.js) ---- */
 
 export const isEmail = (v) => EMAIL_RE.test(String(v).trim())
 export const isPhone = (v) => PHONE_RE.test(normalisePhone(String(v).trim()))
+// One of Poornima University, GCEC, PCE, PIET: these students also give a student email, department, course and semester.
+export const isStudentCampus = (campus) => VERIFIED_CAMPUSES.includes(campus)
+
+// -> { field: message }. `gated` = Startup Junction / Arena: the eligibility gate already established a student
+// at one of the four campuses, so the Yes/No question is not asked and "Others" is not allowed.
+export function applicantErrors(a, { gated = false } = {}) {
+  const e = {}
+  if (a.name.trim().length < 2) e.name = 'Enter your full name.'
+  if (!isEmail(a.email)) e.email = 'Enter a valid email address.'
+  if (!isPhone(a.phone)) e.phone = 'Enter a 10-digit mobile number.'
+  if (!gated && !a.collegeStudent) e.collegeStudent = 'Tell us if you are a college student.'
+  const student = gated || a.collegeStudent === 'Yes'
+  if (student) {
+    const allowed = gated ? VERIFIED_CAMPUSES : [...VERIFIED_CAMPUSES, OTHER_CAMPUS]
+    if (!allowed.includes(a.campus)) e.campus = 'Choose your campus.'
+  }
+  if (student && isStudentCampus(a.campus)) {
+    // Required here; format only, the domain is never checked (the form shows a soft hint instead).
+    if (!isEmail(a.studentEmail)) e.studentEmail = 'Enter your student email.'
+    if (!a.department.trim()) e.department = 'Enter your department.'
+    if (!a.course.trim()) e.course = 'Enter your course.'
+    if (!a.semester.trim()) e.semester = 'Enter your semester.'
+  }
+  return e
+}
+
+// The exact applicant fields sent to the API: trimmed, normalised, and cleared of anything that doesn't apply.
+export function applicantPayload(a, { gated = false } = {}) {
+  const student = gated || a.collegeStudent === 'Yes'
+  const verified = student && isStudentCampus(a.campus)
+  return {
+    name: a.name.trim(),
+    email: a.email.trim().toLowerCase(),
+    phone: normalisePhone(a.phone.trim()),
+    collegeStudent: student ? 'Yes' : 'No',
+    campus: student ? a.campus : '',
+    studentEmail: verified ? a.studentEmail.trim().toLowerCase() : '',
+    department: verified ? a.department.trim() : '',
+    course: verified ? a.course.trim() : '',
+    semester: verified ? a.semester.trim() : '',
+  }
+}
 
 /* ---- API ---- */
 
@@ -91,8 +105,8 @@ async function post(body) {
   }
 }
 
-// One-click options (Startup Arena, Mentorship, Grants).
-export const submitRegistration = (option, data, honeypot = '') => post({ ...data, option, website: honeypot })
+// Competitions and Grants: the applicant fields only.
+export const submitRegistration = (option, applicant, honeypot = '') => post({ ...applicant, option, website: honeypot })
 
 // Straight from the browser to Supabase Storage via a signed URL (Vercel caps request bodies at ~4.5 MB).
 async function putFile(url, file, contentType) {
@@ -104,12 +118,12 @@ async function putFile(url, file, contentType) {
   }
 }
 
-// Options that upload files (Startup Junction, Startup Arena). `details` is that option's answers,
-// sent under `detailKey` ('sj' | 'arena'); `files` maps field -> File.
+// Options that upload files (Startup Junction, Startup Arena). `details` is that option's answers, sent under
+// `detailKey` ('sj' | 'arena'); `files` maps field -> File.
 // Order matters: the server signs each upload, we PUT it, and ONLY THEN is the registration posted, which
 // itself re-verifies every object before writing the row. onStep(label) reports progress for the UI.
-async function submitWithFiles(option, detailKey, details, files, data, honeypot, onStep) {
-  const base = { ...data, option, website: honeypot }
+async function submitWithFiles(option, detailKey, details, files, applicant, honeypot, onStep) {
+  const base = { ...applicant, option, website: honeypot }
   let submissionId = ''
   const uploaded = {}
   // Any failure before the final save deletes what was already uploaded, so nothing is left behind.
@@ -139,12 +153,12 @@ async function submitWithFiles(option, detailKey, details, files, data, honeypot
   return post({ ...base, [detailKey]: { ...details, submissionId, files: uploaded } })
 }
 
-export const submitStartupJunction = (data, sj, files, honeypot = '', onStep = () => {}) =>
-  submitWithFiles('startup-junction', 'sj', sj, files, data, honeypot, onStep)
+export const submitStartupJunction = (applicant, sj, files, honeypot = '', onStep = () => {}) =>
+  submitWithFiles('startup-junction', 'sj', sj, files, applicant, honeypot, onStep)
 
-export const submitStartupArena = (data, arena, files, honeypot = '', onStep = () => {}) =>
-  submitWithFiles('startup-arena', 'arena', arena, files, data, honeypot, onStep)
+export const submitStartupArena = (applicant, arena, files, honeypot = '', onStep = () => {}) =>
+  submitWithFiles('startup-arena', 'arena', arena, files, applicant, honeypot, onStep)
 
 // One-on-One Mentorship: a date (yyyy-mm-dd, IST) and a slot id. Several bookings per student are fine.
-export const submitMentorship = (data, booking, honeypot = '') =>
-  post({ ...data, option: 'mentorship', website: honeypot, mentorship: booking })
+export const submitMentorship = (applicant, booking, honeypot = '') =>
+  post({ ...applicant, option: 'mentorship', website: honeypot, mentorship: booking })

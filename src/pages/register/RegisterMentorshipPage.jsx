@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import RegisterShell, { fieldLabel, primaryButton, FieldError } from '../../components/register/RegisterShell.jsx'
+import ApplicantFields from '../../components/register/ApplicantFields.jsx'
+import DonePanel from '../../components/register/DonePanel.jsx'
 import {
   REGISTRATION_OPTIONS,
   MENTORSHIP_SLOTS,
   mentorshipDates,
   formatMentorshipSuccess,
 } from '../../data/registrationOptions.js'
-import { loadRegistration, submitMentorship, hasStep1, hasStep2, isVerifiedPath, nextRoute } from '../../lib/registration.js'
+import { applicantErrors, applicantPayload, submitMentorship } from '../../lib/registration.js'
+import { useApplicant } from '../../lib/useApplicant.js'
 
 const OPTION = REGISTRATION_OPTIONS.mentorship
 
@@ -29,9 +32,11 @@ function Choice({ selected, onSelect, className = '', children, label }) {
   )
 }
 
+// One-on-One Mentorship: open to everyone (students of any campus and non-students), so the applicant block is the
+// full version. One form: applicant fields + date + slot, one request.
 export default function RegisterMentorshipPage() {
-  const saved = loadRegistration()
   const honeypot = useRef(null)
+  const [applicant, patch] = useApplicant()
   const [dates] = useState(() => mentorshipDates()) // next 28 days from tomorrow (IST), Sundays removed
   const [date, setDate] = useState('')
   const [slot, setSlot] = useState('')
@@ -40,26 +45,27 @@ export default function RegisterMentorshipPage() {
   const [serverError, setServerError] = useState('')
   const [doneMessage, setDoneMessage] = useState('')
 
-  // Open to both paths: any visitor who finished Step 1 (verified students also need Step 2).
-  if (!hasStep1(saved)) return <Navigate to="/register" replace />
-  if (isVerifiedPath(saved) && !hasStep2(saved)) return <Navigate to="/register/details" replace />
-  const backTo = nextRoute(saved)
-
+  const dropErrors = (...keys) => setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !keys.includes(k))))
+  const changeApplicant = (changes) => {
+    patch(changes)
+    dropErrors(...Object.keys(changes))
+    setServerError('')
+  }
   const pickDate = (iso) => {
     setDate(iso)
-    setErrors((e) => ({ ...e, date: undefined }))
+    dropErrors('date')
     setServerError('')
   }
   const pickSlot = (id) => {
     setSlot(id)
-    setErrors((e) => ({ ...e, slot: undefined }))
+    dropErrors('slot')
     setServerError('')
   }
 
   const submit = async (e) => {
     e.preventDefault()
     if (phase !== 'idle') return
-    const found = {}
+    const found = { ...applicantErrors(applicant) }
     if (!date) found.date = 'Pick a date.'
     if (!slot) found.slot = 'Pick a slot.'
     setErrors(found)
@@ -67,7 +73,7 @@ export default function RegisterMentorshipPage() {
     if (Object.keys(found).length) return
 
     setPhase('sending')
-    const result = await submitMentorship(saved, { date, slot }, honeypot.current?.value || '')
+    const result = await submitMentorship(applicantPayload(applicant), { date, slot }, honeypot.current?.value || '')
     if (result.status === 'ok') {
       setDoneMessage(formatMentorshipSuccess(date, slot))
       setPhase('done')
@@ -88,17 +94,9 @@ export default function RegisterMentorshipPage() {
 
   if (phase === 'done') {
     return (
-      <RegisterShell step="One-on-One Mentorship" title="Request received">
-        <div role="status" className="rounded-3xl border border-black/10 bg-white/90 p-7 text-center shadow-[0_40px_80px_-40px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-9">
-          <p className="text-base font-medium text-green-700">{doneMessage}</p>
-          <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
-            <button type="button" onClick={another} className={primaryButton}>Book another session</button>
-            <Link to={backTo} className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-black/15 bg-white px-7 text-sm font-semibold text-ink hover:border-black/35">
-              Back to options
-            </Link>
-          </div>
-        </div>
-      </RegisterShell>
+      <DonePanel step={OPTION.title} title="Request received" message={doneMessage}>
+        <button type="button" onClick={another} className={primaryButton}>Book another session</button>
+      </DonePanel>
     )
   }
 
@@ -107,14 +105,17 @@ export default function RegisterMentorshipPage() {
   const monthStarts = new Set(dates.filter((d, i) => i === 0 || d.monthShort !== dates[i - 1].monthShort).map((d) => d.iso))
 
   return (
-    <RegisterShell wide step="One-on-One Mentorship" title="Book a mentor session" intro={OPTION.description}>
+    <RegisterShell wide step={OPTION.title} title="Book a mentor session" intro={OPTION.description}>
       <form noValidate onSubmit={submit} className="mx-auto max-w-2xl rounded-3xl border border-black/10 bg-white/90 p-7 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-9">
         {/* honeypot: off-screen, not focusable, ignored by assistive tech */}
         <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
           <label>Website<input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" /></label>
         </div>
 
-        <p id="mentor-date-label" className={fieldLabel}>Preferred date <span className="font-normal normal-case tracking-normal text-black/45">(IST, Sundays unavailable)</span></p>
+        <ApplicantFields value={applicant} onChange={changeApplicant} errors={errors} />
+
+        <p className="mt-6 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c2410c]">Your session</p>
+        <p id="mentor-date-label" className={`${fieldLabel} mt-3`}>Preferred date <span className="font-normal normal-case tracking-normal text-black/45">(IST, Sundays unavailable)</span></p>
         <div role="radiogroup" aria-labelledby="mentor-date-label" aria-describedby="mentor-date-err" className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3">
           {dates.map((d) => (
             <div key={d.iso} className="contents">
@@ -146,7 +147,7 @@ export default function RegisterMentorshipPage() {
         <div role="alert" className="mt-1 min-h-[1.5rem] text-sm font-medium text-red-600">{serverError}</div>
 
         <div className="mt-2 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Link to={backTo} className="text-center text-sm font-semibold text-black/60 underline-offset-4 hover:text-ink hover:underline">← Back</Link>
+          <Link to="/register" className="text-center text-sm font-semibold text-black/60 underline-offset-4 hover:text-ink hover:underline">← Back to options</Link>
           <button type="submit" disabled={sending} className={primaryButton}>
             {sending ? 'Booking…' : 'Request session'}
             {!sending && <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>}

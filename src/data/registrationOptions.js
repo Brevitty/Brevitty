@@ -43,9 +43,21 @@ export const REGISTRATION_OPTIONS = {
   },
 }
 
-// Cards per path, in display order.
-export const STUDENT_OPTIONS = ['startup-junction', 'startup-arena', 'mentorship', 'grants']
+// Card order on /register, and each option's own form page.
+export const OPTION_ORDER = ['startup-junction', 'startup-arena', 'mentorship', 'grants']
+export const OPTION_ROUTES = {
+  'startup-junction': '/register/startup-junction',
+  'startup-arena': '/register/startup-arena',
+  mentorship: '/register/mentorship',
+  grants: '/register/grants',
+}
+// Open to everyone. Startup Junction and Startup Arena are only for students of the four campuses.
 export const OPEN_OPTIONS = ['mentorship', 'grants']
+
+// Campus picker shown first on the Junction and Arena pages: choosing a campus is the eligibility check.
+export const CAMPUS_PROMPT = 'Select your campus'
+export const NOT_FROM_CAMPUSES = 'Not from these campuses?'
+export const notEligibleMessage = (title) => `${title} is currently open to students of Poornima University, GCEC, PCE and PIET.`
 
 /* ---------- Startup Junction extra details (mirrors the "Brevitty On-Boarding Form") ---------- */
 

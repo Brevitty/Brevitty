@@ -1,7 +1,10 @@
 import { useRef, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import RegisterShell, { fieldInput, primaryButton } from '../../components/register/RegisterShell.jsx'
 import { Field, FileField } from '../../components/register/FormParts.jsx'
+import ApplicantFields from '../../components/register/ApplicantFields.jsx'
+import EligibilityGate from '../../components/register/EligibilityGate.jsx'
+import DonePanel from '../../components/register/DonePanel.jsx'
 import {
   REGISTRATION_OPTIONS,
   STAGES,
@@ -16,16 +19,8 @@ import {
   fileProblem,
   isHttpUrl,
 } from '../../data/registrationOptions.js'
-import {
-  loadRegistration,
-  markDone,
-  submitStartupJunction,
-  hasStep1,
-  hasStep2,
-  isVerifiedPath,
-  isEmail,
-  isPhone,
-} from '../../lib/registration.js'
+import { applicantErrors, applicantPayload, submitStartupJunction, isEmail, isPhone } from '../../lib/registration.js'
+import { useApplicant } from '../../lib/useApplicant.js'
 
 const OPTION = REGISTRATION_OPTIONS['startup-junction']
 const EMPTY_MEMBER = { name: '', mobile: '' }
@@ -65,9 +60,14 @@ function validate(f, files, team) {
   return e
 }
 
+// Startup Junction is for students of the four campuses: the gate asks first, then the form below renders.
 export default function RegisterStartupJunctionPage() {
-  const saved = loadRegistration()
+  return <EligibilityGate option="startup-junction">{(campus) => <JunctionForm campus={campus} />}</EligibilityGate>
+}
+
+function JunctionForm({ campus }) {
   const honeypot = useRef(null)
+  const [applicant, patchApplicant] = useApplicant({ collegeStudent: 'Yes', campus })
   const [f, setF] = useState(INITIAL)
   const [files, setFiles] = useState({ pitchDeck: null, logo: null, founderPhoto: null })
   const [team, setTeam] = useState(() => Array.from({ length: MAX_TEAM_SIZE - 1 }, () => ({ ...EMPTY_MEMBER })))
@@ -77,16 +77,17 @@ export default function RegisterStartupJunctionPage() {
   const [serverError, setServerError] = useState('')
   const [doneMessage, setDoneMessage] = useState('')
 
-  // Verified campus students who finished Step 2 only; everyone else is sent back to where they belong.
-  if (!hasStep1(saved) || !isVerifiedPath(saved)) return <Navigate to="/register" replace />
-  if (!hasStep2(saved)) return <Navigate to="/register/details" replace />
-
   const full = isFullStage(f.stage)
   const members = Math.max(0, Math.min(MAX_TEAM_SIZE, Number(f.teamSize)) - 1)
   const clear = (...keys) => setErrors((e) => Object.fromEntries(Object.entries(e).filter(([k]) => !keys.includes(k))))
   const set = (patch) => {
     setF((s) => ({ ...s, ...patch }))
     clear(...Object.keys(patch))
+    setServerError('')
+  }
+  const changeApplicant = (changes) => {
+    patchApplicant(changes)
+    clear(...Object.keys(changes))
     setServerError('')
   }
   const pickFile = (field, file) => {
@@ -102,7 +103,7 @@ export default function RegisterStartupJunctionPage() {
   const submit = async (e) => {
     e.preventDefault()
     if (phase !== 'idle') return
-    const found = validate(f, files, team)
+    const found = { ...applicantErrors(applicant, { gated: true }), ...validate(f, files, team) }
     setErrors(found)
     setServerError('')
     if (Object.keys(found).some((k) => found[k])) return // nothing is uploaded unless every field is valid
@@ -118,9 +119,8 @@ export default function RegisterStartupJunctionPage() {
 
     setPhase('sending')
     setStepLabel(full ? 'Uploading your files…' : 'Saving your registration…')
-    const result = await submitStartupJunction(saved, sj, full ? files : {}, honeypot.current?.value || '', setStepLabel)
+    const result = await submitStartupJunction(applicantPayload(applicant, { gated: true }), sj, full ? files : {}, honeypot.current?.value || '', setStepLabel)
     if (result.status === 'ok' || result.status === 'already') {
-      markDone('startup-junction')
       setDoneMessage(result.status === 'ok' ? OPTION.success : result.message || "You're already registered for this one.")
       setPhase('done')
       return
@@ -129,27 +129,21 @@ export default function RegisterStartupJunctionPage() {
     setPhase('idle')
   }
 
-  if (phase === 'done') {
-    return (
-      <RegisterShell step="Startup Junction" title="All set">
-        <div role="status" className="rounded-3xl border border-black/10 bg-white/90 p-7 text-center shadow-[0_40px_80px_-40px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-9">
-          <p className="text-base font-medium text-green-700">{doneMessage}</p>
-          <Link to="/register/student" className={`${primaryButton} mt-6`}>Back to options</Link>
-        </div>
-      </RegisterShell>
-    )
-  }
+  if (phase === 'done') return <DonePanel step="Startup Junction" message={doneMessage} />
 
   const sending = phase === 'sending'
   const err = (k) => errors[k]
   return (
-    <RegisterShell wide step="Startup Junction" title="Tell us about your startup" intro="Early-stage? Just pick your stage. Already building? Share a few more details.">
+    <RegisterShell wide step="Startup Junction" title="Tell us about your startup" intro="Tell us about yourself, then your startup. Early-stage? Just pick your stage. Already building? Share a few more details.">
       <form noValidate onSubmit={submit} className="mx-auto max-w-2xl rounded-3xl border border-black/10 bg-white/90 p-7 shadow-[0_40px_80px_-40px_rgba(0,0,0,0.3)] backdrop-blur-sm sm:p-9">
         {/* honeypot: off-screen, not focusable, ignored by assistive tech */}
         <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">
           <label>Website<input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" /></label>
         </div>
 
+        <ApplicantFields value={applicant} onChange={changeApplicant} errors={errors} gated />
+
+        <p className="mt-6 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-[#c2410c]">Your startup</p>
         <Field id="sj-stage" label="Stage" error={err('stage')}>
           <select id="sj-stage" value={f.stage} onChange={(e) => set({ stage: e.target.value })} aria-invalid={Boolean(err('stage'))} aria-describedby="sj-stage-err" className={fieldInput}>
             <option value="">Select your stage</option>
@@ -242,7 +236,7 @@ export default function RegisterStartupJunctionPage() {
         <div role="alert" className="mt-3 min-h-[1.5rem] text-sm font-medium text-red-600">{serverError}</div>
 
         <div className="mt-2 flex flex-col-reverse items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <Link to="/register/student" className="text-center text-sm font-semibold text-black/60 underline-offset-4 hover:text-ink hover:underline">← Back</Link>
+          <Link to="/register" className="text-center text-sm font-semibold text-black/60 underline-offset-4 hover:text-ink hover:underline">← Back to options</Link>
           <button type="submit" disabled={sending || !f.stage} className={primaryButton}>
             {sending ? stepLabel || 'Registering…' : 'Register'}
             {!sending && <span aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1">→</span>}
