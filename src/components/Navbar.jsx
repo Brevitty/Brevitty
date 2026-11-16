@@ -4,9 +4,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
 import ChangePasswordModal from './junction/ChangePasswordModal.jsx'
 
-// Same Google Form as the hero's Register Now button.
-const REGISTER_URL = 'https://forms.gle/JhuGFUnYRthAJFyc9'
-
 const ease = [0.22, 1, 0.36, 1]
 
 // `route` links navigate between pages; `hash` links scroll to a homepage section.
@@ -389,15 +386,13 @@ export default function Navbar() {
                 </div>
               )}
 
-              <a
-                href={REGISTER_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/register"
                 onClick={() => setOpen(false)}
                 className="w-full max-w-xs rounded-full bg-orange py-3.5 text-center text-sm font-semibold text-white shadow-[0_14px_34px_-12px_rgba(249,115,22,0.7)]"
               >
                 Register Now →
-              </a>
+              </Link>
 
               <div className="flex items-center gap-6">
                 {SOCIALS.map((s) => (

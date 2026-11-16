@@ -3,8 +3,6 @@ import { Link } from "react-router-dom";
 import HeroBackground from "./HeroBackground.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 
-// Same Google Form the site-wide "Apply Now" CTAs use; change here to repoint the hero.
-const REGISTER_URL = "https://forms.gle/JhuGFUnYRthAJFyc9";
 const MotionLink = motion(Link);
 const ease = [0.22, 1, 0.36, 1];
 
@@ -95,10 +93,8 @@ export default function Hero() {
               </span>
             </MotionLink>
           ) : (
-            <motion.a
-              href={REGISTER_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+            <MotionLink
+              to="/register"
               whileHover={{ scale: 1.03, y: -1 }}
               whileTap={{ scale: 0.97 }}
               // while the session check is in flight keep the space but show nothing, so the CTA never flashes
@@ -112,7 +108,7 @@ export default function Hero() {
               <span className="transition-transform duration-300 group-hover:translate-x-1">
                 →
               </span>
-            </motion.a>
+            </MotionLink>
           )}
 
         </motion.div>
