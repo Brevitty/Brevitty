@@ -139,7 +139,10 @@ export async function appendRegRow(tab, cells) {
   const { header } = await layout(tab, expected)
   const byName = Object.fromEntries(expected.map((name, i) => [name, cells[i]]))
   const row = header.map((h) => (Object.hasOwn(byName, h) ? byName[h] : ''))
-  await regRequest(`/values/${q(tab)}!A:A:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
+  // OVERWRITE writes into the next blank row, which keeps the column formats the setup script applied (the
+  // Mentorship date column). INSERT_ROWS would add a fresh row that copies the row above it, so with an empty
+  // tab the header's plain format spread to every booking and dates showed as day numbers.
+  await regRequest(`/values/${q(tab)}!A:A:append?valueInputOption=RAW&insertDataOption=OVERWRITE`, {
     method: 'POST',
     body: JSON.stringify({ values: [row] }),
   })
