@@ -69,7 +69,14 @@ export default function ApplicantFields({ value, onChange, errors = {}, gated = 
         </div>
       )}
 
-      {student && (
+      {gated && (
+        // Already picked on the previous screen and not editable here (go back to options to start over).
+        <Field id="ap-campus" label="Campus" error={errors.campus}>
+          <input id="ap-campus" value={value.campus} readOnly aria-readonly="true" className={`${fieldInput} cursor-default bg-black/[0.04] font-semibold`} />
+        </Field>
+      )}
+
+      {student && !gated && (
         <Field id="ap-campus" label="Campus" error={errors.campus}>
           <select id="ap-campus" value={value.campus} onChange={(e) => changeCampus(e.target.value)} aria-invalid={Boolean(errors.campus)} aria-describedby="ap-campus-err" className={fieldInput}>
             <option value="">Select your campus</option>
