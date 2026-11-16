@@ -61,7 +61,7 @@ function buildJwt(email, privateKey) {
   }
 }
 
-async function googleErrorText(res) {
+export async function googleErrorText(res) {
   const text = await res.text().catch(() => '')
   try {
     const j = JSON.parse(text)
@@ -113,7 +113,7 @@ async function getAccessToken() {
   return tokenInflight
 }
 
-async function sheetsFetch(url, init = {}) {
+export async function sheetsFetch(url, init = {}) {
   let refreshedToken = false
   for (let attempt = 0; ; attempt++) {
     const token = await getAccessToken()

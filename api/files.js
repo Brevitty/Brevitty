@@ -2,11 +2,12 @@
 //   POST upload-url  {pillar, doc_id, filename, size, type} -> {path, upload_url, content_type}
 //                    needs an approved membership in that pillar; the path is always the caller's own.
 //   GET  view?path=  302 to a 5-minute signed URL. Allowed for the file's owner, a Hub admin, and
-//                    (Launchpad files only) a Launchpad mentor. Opened in a new tab, so errors are HTML.
+//                    (Launchpad files only) a Launchpad mentor. registrations/startup-junction/* is admin-only. Opened in a new tab, so errors are HTML.
 import { readJson } from './_lib/http.js'
 import { currentIdentity } from './_lib/signIn.js'
 import { ApiError } from './_lib/consulting/rules.js'
 import { createUploadUrl, signedViewUrl, parsePath, ownsPath } from './_lib/files.js'
+import { isRegistrationPath } from './_lib/registrationFiles.js'
 import { isLaunchpadMentor } from './_lib/launchpadSheet.js'
 
 const hasPillar = (identity, id) => identity.memberships.some((m) => m.pillar === id && m.status === 'approved')
@@ -28,6 +29,8 @@ function htmlError(res, status, message) {
 }
 
 async function canView(identity, path) {
+  // Public Startup Junction registration uploads (no owner account): Hub admins only.
+  if (isRegistrationPath(path)) return hasPillar(identity, 'admin')
   const parsed = parsePath(path)
   if (!parsed) return false
   if (ownsPath(identity.email, path) || hasPillar(identity, 'admin')) return true

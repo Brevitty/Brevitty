@@ -13,7 +13,9 @@ if (missing.length) {
 
 const bucket = process.env.SUPABASE_BUCKET.trim()
 const supabase = createClient(process.env.SUPABASE_URL.trim(), process.env.SUPABASE_SECRET_KEY.trim(), { auth: { persistSession: false } })
-const options = { public: false, fileSizeLimit: MAX_FILE_BYTES, allowedMimeTypes: [...new Set(Object.values(FILE_TYPES))] }
+// WEBP is only for the public registration form (logo / founder photo); the Hub's own rules (fileRules.js) don't accept it.
+const REGISTRATION_EXTRA_TYPES = ['image/webp']
+const options = { public: false, fileSizeLimit: MAX_FILE_BYTES, allowedMimeTypes: [...new Set([...Object.values(FILE_TYPES), ...REGISTRATION_EXTRA_TYPES])] }
 
 const { data: existing } = await supabase.storage.getBucket(bucket)
 const { error } = existing ? await supabase.storage.updateBucket(bucket, options) : await supabase.storage.createBucket(bucket, options)

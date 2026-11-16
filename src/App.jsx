@@ -19,6 +19,13 @@ const StartupJunctionPage = lazy(() => import('./pages/StartupJunctionPage.jsx')
 const AdminPage = lazy(() => import('./pages/AdminPage.jsx'))
 const ConsultingPage = lazy(() => import('./pages/ConsultingPage.jsx'))
 const SignInPage = lazy(() => import('./pages/SignInPage.jsx'))
+// Public registration flow (no auth gate, normal site chrome)
+const RegisterPage = lazy(() => import('./pages/register/RegisterPage.jsx'))
+const RegisterDetailsPage = lazy(() => import('./pages/register/RegisterDetailsPage.jsx'))
+const RegisterOptionsPage = lazy(() => import('./pages/register/RegisterOptionsPage.jsx'))
+const RegisterStartupJunctionPage = lazy(() => import('./pages/register/RegisterStartupJunctionPage.jsx'))
+const RegisterStartupArenaPage = lazy(() => import('./pages/register/RegisterStartupArenaPage.jsx'))
+const RegisterMentorshipPage = lazy(() => import('./pages/register/RegisterMentorshipPage.jsx'))
 const HubGate = lazy(() => import('./pages/hub/HubGate.jsx'))
 const HubIndexPage = lazy(() => import('./pages/hub/HubIndexPage.jsx'))
 const HubChoosePage = lazy(() => import('./pages/hub/HubChoosePage.jsx'))
@@ -60,6 +67,14 @@ export default function App() {
           {/* Consulting workspace: own auth + role gate; hides site chrome itself */}
           <Route path="/consulting/*" element={<ConsultingPage />} />
           <Route path="/signin" element={<SignInPage />} />
+          {/* Public registration: outside HubGate on purpose; each step guards itself via sessionStorage */}
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/register/details" element={<RegisterDetailsPage />} />
+          <Route path="/register/student" element={<RegisterOptionsPage variant="student" />} />
+          <Route path="/register/startup-junction" element={<RegisterStartupJunctionPage />} />
+          <Route path="/register/startup-arena" element={<RegisterStartupArenaPage />} />
+          <Route path="/register/mentorship" element={<RegisterMentorshipPage />} />
+          <Route path="/register/open" element={<RegisterOptionsPage variant="open" />} />
           {/* /hub/* : HubGate sends signed-out visitors to /signin?next=...; workspaces also check access server-side */}
           <Route path="/hub" element={<HubGate />}>
             <Route index element={<HubIndexPage />} />

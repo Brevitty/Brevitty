@@ -12,7 +12,7 @@ const MAX_NAME_CHARS = 100
 const DOC_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 let client = null
-function storage() {
+export function storage() {
   const url = process.env.SUPABASE_URL?.trim()
   const key = process.env.SUPABASE_SECRET_KEY?.trim()
   if (!url || !key) fail(503, 'File uploads are not set up yet. Please contact the Hub team.')
