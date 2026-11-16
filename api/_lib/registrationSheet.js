@@ -13,7 +13,7 @@ export const REG_TABS = {
   grants: 'Grants',
 }
 
-// Same columns on every tab. EMAIL_COL is the 0-based index used for the duplicate check.
+// Columns on every tab. EMAIL_COL is the 0-based index used for the duplicate check.
 export const REG_COLUMNS = [
   'Timestamp',
   'Name',
@@ -29,6 +29,28 @@ export const REG_COLUMNS = [
   'Option Registered',
 ]
 export const EMAIL_COL = REG_COLUMNS.indexOf('Email')
+
+// Startup Junction collects the On-Boarding Form answers too: appended to the RIGHT of REG_COLUMNS,
+// so rows written before these existed stay valid. Team members 1-5 = Team Size 2-6 (founder excluded).
+const TEAM_COLUMNS = [1, 2, 3, 4, 5].flatMap((n) => [`Team Member ${n}`, `Mobile ${n}`])
+export const SJ_EXTRA_COLUMNS = [
+  'Stage', 'Startup Name', 'One-liner', 'Industry', 'Description', 'Startup Email', 'Website',
+  'Pitch Deck', 'Logo', 'Incubated Elsewhere', 'Incubated Where', 'Registered With', 'Registration Number',
+  'Founder Photo', 'Founder Role', 'Team Size',
+  ...TEAM_COLUMNS,
+]
+
+// tab -> full header row
+export const REG_HEADERS = Object.fromEntries(
+  Object.entries(REG_TABS).map(([option, tab]) => [tab, option === 'startup-junction' ? [...REG_COLUMNS, ...SJ_EXTRA_COLUMNS] : REG_COLUMNS])
+)
+
+// 1-based column number -> A1 letters (1 -> A, 27 -> AA)
+export function colLetter(n) {
+  let s = ''
+  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s
+  return s
+}
 
 function requireRegSheetId() {
   const id = process.env.REGISTRATION_SHEET_ID?.trim()

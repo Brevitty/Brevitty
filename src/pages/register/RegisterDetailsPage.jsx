@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import RegisterShell, { fieldLabel, fieldInput, primaryButton, FieldError } from '../../components/register/RegisterShell.jsx'
+import RegisterShell, { fieldLabel, fieldInput, primaryButton, FieldError, StudentEmailNote } from '../../components/register/RegisterShell.jsx'
 import { LIMITS } from '../../data/registrationOptions.js'
 import { loadRegistration, saveRegistration, hasStep1, isVerifiedPath, isEmail } from '../../lib/registration.js'
 
@@ -9,7 +9,7 @@ const FIELDS = [
   { key: 'course', label: 'Course', placeholder: 'e.g. B.Tech', max: LIMITS.field },
   { key: 'semester', label: 'Semester', placeholder: 'e.g. 5', max: LIMITS.semester, inputMode: 'numeric' },
   { key: 'campusOfficialEmail', label: 'Campus official email', placeholder: 'e.g. placement or coordinator email', max: LIMITS.email, type: 'email' },
-  { key: 'studentEmail', label: 'Student email', placeholder: 'Your college-issued email', max: LIMITS.email, type: 'email' },
+  { key: 'studentEmail', label: 'Student email', placeholder: 'name@poornima.edu', max: LIMITS.email, type: 'email' },
 ]
 
 function validate(f) {
@@ -72,6 +72,7 @@ export default function RegisterDetailsPage() {
               aria-describedby={`reg-${key}-err`}
               className={fieldInput}
             />
+            {key === 'studentEmail' && <StudentEmailNote id="reg-studentEmail-hint" value={form.studentEmail} />}
             <FieldError id={`reg-${key}-err`}>{errors[key]}</FieldError>
           </div>
         ))}

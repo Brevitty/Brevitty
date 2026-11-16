@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import RegisterShell, { fieldLabel, fieldInput, primaryButton, FieldError } from '../../components/register/RegisterShell.jsx'
+import RegisterShell, { fieldLabel, fieldInput, primaryButton, FieldError, StudentEmailNote } from '../../components/register/RegisterShell.jsx'
 import { VERIFIED_CAMPUSES, OTHER_CAMPUS, LIMITS, normalisePhone } from '../../data/registrationOptions.js'
 import { loadRegistration, saveRegistration, nextRoute, isEmail, isPhone } from '../../lib/registration.js'
 
@@ -169,14 +169,12 @@ export default function RegisterPage() {
               value={form.studentEmail}
               onChange={(e) => set({ studentEmail: e.target.value })}
               maxLength={LIMITS.email}
-              placeholder="Your college-issued email"
+              placeholder="name@poornima.edu"
               aria-invalid={Boolean(errors.studentEmail)}
               aria-describedby="reg-student-email-hint reg-student-email-err"
               className={fieldInput}
             />
-            <p id="reg-student-email-hint" className="mt-1 text-xs text-black/50">
-              Add it to unlock Startup Junction and Startup Arena.
-            </p>
+            <StudentEmailNote id="reg-student-email-hint" value={form.studentEmail} />
             <FieldError id="reg-student-email-err">{errors.studentEmail}</FieldError>
           </>
         )}

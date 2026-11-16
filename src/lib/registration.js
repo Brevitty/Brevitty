@@ -72,19 +72,69 @@ export const isPhone = (v) => PHONE_RE.test(normalisePhone(String(v).trim()))
 
 /* ---- API ---- */
 
-// -> { status: 'ok' | 'already' | 'error', message }
-export async function submitRegistration(option, data, honeypot = '') {
+const NETWORK_ERROR = 'Could not reach the server. Check your connection and try again.'
+const GENERIC_ERROR = 'Something went wrong. Please try again.'
+
+// -> { status: 'ok' | 'already' | 'error', message, data }
+async function post(body) {
   try {
     const res = await fetch('/api/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, option, website: honeypot }),
+      body: JSON.stringify(body),
     })
     const json = await res.json().catch(() => ({}))
-    if (res.ok) return { status: 'ok' }
+    if (res.ok) return { status: 'ok', data: json.data }
     if (res.status === 409) return { status: 'already', message: json.error }
-    return { status: 'error', message: json.error || 'Something went wrong. Please try again.' }
+    return { status: 'error', message: json.error || GENERIC_ERROR }
   } catch {
-    return { status: 'error', message: 'Could not reach the server. Check your connection and try again.' }
+    return { status: 'error', message: NETWORK_ERROR }
   }
+}
+
+// One-click options (Startup Arena, Mentorship, Grants).
+export const submitRegistration = (option, data, honeypot = '') => post({ ...data, option, website: honeypot })
+
+// Straight from the browser to Supabase Storage via a signed URL (Vercel caps request bodies at ~4.5 MB).
+async function putFile(url, file, contentType) {
+  try {
+    const res = await fetch(url, { method: 'PUT', headers: { 'Content-Type': contentType }, body: file })
+    return res.ok ? null : 'The file could not be uploaded. Please try again.'
+  } catch {
+    return 'Upload interrupted. Check your connection and try again.'
+  }
+}
+
+// Startup Junction. `sj` holds the form answers; `files` maps field -> File (full stages only).
+// Order matters: the server signs each upload, we PUT it, and ONLY THEN is the registration posted, which
+// itself re-verifies every object before writing the row. onStep(label) reports progress for the UI.
+export async function submitStartupJunction(data, sj, files, honeypot = '', onStep = () => {}) {
+  const base = { ...data, option: 'startup-junction', website: honeypot }
+  let submissionId = ''
+  const uploaded = {}
+  // Any failure before the final save deletes what was already uploaded, so nothing is left behind.
+  const abort = async (result) => {
+    if (submissionId) await post({ action: 'discard', submissionId })
+    return result
+  }
+  for (const [field, file] of Object.entries(files)) {
+    onStep(`Uploading ${file.name}…`)
+    const signed = await post({
+      ...base,
+      action: 'upload-url',
+      sj: { stage: sj.stage },
+      submissionId,
+      field,
+      filename: file.name,
+      size: file.size,
+      type: file.type,
+    })
+    if (signed.status !== 'ok') return abort(signed)
+    submissionId = signed.data.submissionId
+    const problem = await putFile(signed.data.upload_url, file, signed.data.content_type)
+    if (problem) return abort({ status: 'error', message: problem })
+    uploaded[field] = file.name.split('.').pop().toLowerCase()
+  }
+  onStep('Saving your registration…')
+  return post({ ...base, sj: { ...sj, submissionId, files: uploaded } })
 }

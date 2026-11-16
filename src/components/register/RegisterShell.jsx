@@ -1,5 +1,7 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import HeroBackground from '../HeroBackground.jsx'
+import { STUDENT_EMAIL_HINT, STUDENT_EMAIL_WARNING, isKnownStudentEmail } from '../../data/registrationOptions.js'
+import { isEmail } from '../../lib/registration.js'
 
 const ease = [0.22, 1, 0.36, 1]
 
@@ -17,6 +19,17 @@ export function FieldError({ id, children }) {
     <p id={id} role="alert" className="mt-1 min-h-[1.25rem] text-xs font-medium text-red-600">
       {children}
     </p>
+  )
+}
+
+// Helper line under a student-email field. The unknown-domain note is advice only: it never blocks submit.
+export function StudentEmailNote({ id, value }) {
+  const warn = isEmail(value) && !isKnownStudentEmail(value)
+  return (
+    <>
+      <p id={id} className="mt-1 text-xs text-black/50">{STUDENT_EMAIL_HINT}</p>
+      <p role="status" className="mt-1 min-h-[1rem] text-xs font-medium text-amber-700">{warn ? STUDENT_EMAIL_WARNING : ''}</p>
+    </>
   )
 }
 

@@ -1,9 +1,10 @@
 // Creates the four registration tabs (if missing) in the "Brevity New Registration" sheet
-// (REGISTRATION_SHEET_ID), each with a bold, frozen header row. Never touches existing rows;
-// a tab whose row 1 is blank gets the header. Run locally:
+// (REGISTRATION_SHEET_ID) and makes sure each header row has every expected column.
+// Safe to re-run: it only ADDS tabs and appends missing columns to the right of the existing
+// header (matched by name); it never rewrites, reorders or deletes anything, and never touches data rows.
 //   node scripts/setup-registration-sheet.mjs
 import { loadEnv } from 'vite'
-import { regRequest, REG_TABS, REG_COLUMNS } from '../api/_lib/registrationSheet.js'
+import { regRequest, REG_TABS, REG_HEADERS, colLetter } from '../api/_lib/registrationSheet.js'
 
 for (const [k, v] of Object.entries(loadEnv('development', process.cwd(), ''))) {
   if (process.env[k] === undefined) process.env[k] = v
@@ -15,10 +16,11 @@ if (missing.length) {
 }
 
 const q = (tab) => encodeURIComponent(`'${tab}'`)
+const META_FIELDS = '?fields=properties.title,sheets.properties(title,sheetId,gridProperties.columnCount)'
 
 let meta
 try {
-  meta = await regRequest('?fields=properties.title,sheets.properties(title,sheetId)')
+  meta = await regRequest(META_FIELDS)
 } catch (err) {
   if (err.status === 403 || err.status === 404) {
     console.error(
@@ -31,49 +33,63 @@ try {
 }
 console.log(`Spreadsheet: "${meta.properties.title}"`)
 
-const ids = Object.fromEntries(meta.sheets.map((s) => [s.properties.title, s.properties.sheetId]))
 const tabs = Object.values(REG_TABS)
-
-const toAdd = tabs.filter((t) => !(t in ids))
+const toAdd = tabs.filter((t) => !meta.sheets.some((s) => s.properties.title === t))
 if (toAdd.length) {
-  const res = await regRequest(':batchUpdate', {
+  await regRequest(':batchUpdate', {
     method: 'POST',
     body: JSON.stringify({ requests: toAdd.map((title) => ({ addSheet: { properties: { title } } })) }),
   })
-  res.replies.forEach((r, i) => (ids[toAdd[i]] = r.addSheet.properties.sheetId))
   console.log(`Created tab(s): ${toAdd.join(', ')}`)
+  meta = await regRequest(META_FIELDS)
 }
+const props = Object.fromEntries(meta.sheets.map((s) => [s.properties.title, s.properties]))
 
-const lastCol = String.fromCharCode(64 + REG_COLUMNS.length) // 12 columns -> L
 for (const tab of tabs) {
-  const row1 = (await regRequest(`/values/${q(tab)}!A1:${lastCol}1`)).values?.[0] || []
-  if (row1.some((c) => String(c).trim())) {
-    console.log(`"${tab}": header already present, left as is`)
-  } else {
-    await regRequest(`/values/${q(tab)}!A1:${lastCol}1?valueInputOption=RAW`, {
+  const want = REG_HEADERS[tab]
+  const { sheetId, gridProperties } = props[tab]
+  const lastWanted = colLetter(want.length)
+  const row1 = (await regRequest(`/values/${q(tab)}!A1:${colLetter(Math.max(want.length, gridProperties.columnCount))}1`)).values?.[0] || []
+  const have = row1.map((c) => String(c).trim())
+
+  // Columns to append = wanted names not already in the header, in wanted order, placed after the last used cell.
+  const toAppend = want.filter((c) => !have.includes(c))
+  const lastUsed = have.reduce((n, c, i) => (c ? i + 1 : n), 0)
+  const needCols = lastUsed + toAppend.length
+
+  if (toAppend.length) {
+    if (gridProperties.columnCount < needCols) {
+      // A sheet only has 26 columns by default; the API refuses writes past the grid.
+      await regRequest(':batchUpdate', {
+        method: 'POST',
+        body: JSON.stringify({
+          requests: [{ updateSheetProperties: { properties: { sheetId, gridProperties: { columnCount: needCols } }, fields: 'gridProperties.columnCount' } }],
+        }),
+      })
+    }
+    const start = colLetter(lastUsed + 1)
+    await regRequest(`/values/${q(tab)}!${start}1:${colLetter(needCols)}1?valueInputOption=RAW`, {
       method: 'PUT',
-      body: JSON.stringify({ values: [REG_COLUMNS] }),
+      body: JSON.stringify({ values: [toAppend] }),
     })
-    console.log(`"${tab}": header written`)
+    console.log(`"${tab}": ${lastUsed ? `added ${toAppend.length} column(s) from ${start}` : 'header written'}`)
+  } else {
+    console.log(`"${tab}": header already complete (${lastWanted})`)
   }
-  // Bold + frozen header (idempotent).
+
+  // Bold + frozen header (idempotent; formatting only).
   await regRequest(':batchUpdate', {
     method: 'POST',
     body: JSON.stringify({
       requests: [
         {
           repeatCell: {
-            range: { sheetId: ids[tab], startRowIndex: 0, endRowIndex: 1 },
+            range: { sheetId, startRowIndex: 0, endRowIndex: 1 },
             cell: { userEnteredFormat: { textFormat: { bold: true } } },
             fields: 'userEnteredFormat.textFormat.bold',
           },
         },
-        {
-          updateSheetProperties: {
-            properties: { sheetId: ids[tab], gridProperties: { frozenRowCount: 1 } },
-            fields: 'gridProperties.frozenRowCount',
-          },
-        },
+        { updateSheetProperties: { properties: { sheetId, gridProperties: { frozenRowCount: 1 } }, fields: 'gridProperties.frozenRowCount' } },
       ],
     }),
   })

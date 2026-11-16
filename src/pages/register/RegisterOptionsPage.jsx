@@ -79,6 +79,8 @@ export default function RegisterOptionsPage({ variant }) {
   const setOne = (id, patch) => setStates((s) => ({ ...s, [id]: { ...s[id], ...patch } }))
 
   const register = async (id) => {
+    // Startup Junction needs startup details first, so it has its own form page; the rest are one click.
+    if (id === 'startup-junction') return navigate('/register/startup-junction')
     setOne(id, { status: 'loading', message: '' })
     const result = await submitRegistration(id, data, honeypot.current?.value || '')
     if (result.status === 'ok' || result.status === 'already') markDone(id)
