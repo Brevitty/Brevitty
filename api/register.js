@@ -59,6 +59,7 @@ const MSG = {
   rate: 'Too many attempts. Give it a minute and try again.',
   invalid: 'Please check your details and try again.',
   already: "You're already registered for this one. We'll be in touch!",
+  notEligible: 'Startup Junction and Startup Arena are currently open to students of Poornima University, GCEC, PCE and PIET.',
   slotTaken: "You've already booked this date and slot. Pick another slot or date.",
   badDate: "That date isn't available. Please pick another one.",
   unavailable: 'Registration is temporarily unavailable. Please try again in a few minutes.',
@@ -98,22 +99,17 @@ function validateIdentity(body) {
   const studentEmail = oneLine(body.studentEmail, LIMITS.email).toLowerCase()
   const row = { name, email, phone, collegeStudent, campus, studentEmail: '', department: '', course: '', semester: '' }
 
-  // Verified = one of the four campuses AND a student email. Then the Step-2 fields are mandatory.
-  // (The student email's domain is never checked: the form only shows a soft hint.)
-  const verified = VERIFIED_CAMPUSES.includes(campus) && Boolean(studentEmail)
+  // A student of one of the four campuses ("verified"): student email, department, course and semester are all
+  // required, for every option. (The email's domain is never checked: the form only shows a soft hint.)
+  // Campus "Others" and non-students keep just the basic fields.
+  const verified = VERIFIED_CAMPUSES.includes(campus)
   if (verified) {
     const department = oneLine(body.department, LIMITS.field)
     const course = oneLine(body.course, LIMITS.field)
     const semester = oneLine(body.semester, LIMITS.semester)
     if (!EMAIL_RE.test(studentEmail) || !department || !course || !semester) return { error: MSG.invalid }
     Object.assign(row, { studentEmail, department, course, semester })
-  } else if (studentEmail) {
-    if (!EMAIL_RE.test(studentEmail)) return { error: MSG.invalid }
-    row.studentEmail = studentEmail
   }
-
-  // Startup Junction / Arena are for verified campus students only.
-  if (!verified && !OPEN_OPTIONS.includes(option)) return { error: MSG.invalid }
   return { option, row, verified }
 }
 
@@ -281,8 +277,12 @@ export default async function handler(req, res) {
 
   const identity = validateIdentity(body)
   if (identity.error) return bail(400, identity.error)
-  const { option, row } = identity
+  const { option, row, verified } = identity
   const tab = REG_TABS[option]
+
+  // Startup Junction and Startup Arena are for students of the four campuses only. Refused here, before any
+  // upload is signed or any row is written, even if someone skips the eligibility gate in the browser.
+  if (!OPEN_OPTIONS.includes(option) && !verified) return bail(403, MSG.notEligible, { code: 'not_eligible' })
 
   try {
     /* ---- action: upload-url ---- */
