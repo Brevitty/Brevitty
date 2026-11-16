@@ -19,6 +19,7 @@ import {
   OPTION_IDS,
   VERIFIED_CAMPUSES,
   OTHER_CAMPUS,
+  needsDepartment,
   OPEN_OPTIONS,
   LIMITS,
   EMAIL_RE,
@@ -81,7 +82,7 @@ const fail = (res, status, error, extra = {}) => res.status(status).json({ ok: f
 function validateIdentity(body) {
   const caps = [
     [body.name, LIMITS.name], [body.email, LIMITS.email], [body.studentEmail, LIMITS.email],
-    [body.department, LIMITS.field], [body.course, LIMITS.field],
+    ...(needsDepartment(oneLine(body.campus, LIMITS.campusText)) ? [[body.department, LIMITS.field]] : []), [body.course, LIMITS.field],
     [body.semester, LIMITS.semester], [body.campus, LIMITS.campusText], [body.phone, 20],
   ]
   if (caps.some(([v, max]) => tooLong(v, max))) return { error: MSG.invalid }
@@ -104,10 +105,11 @@ function validateIdentity(body) {
   // Campus "Others" and non-students keep just the basic fields.
   const verified = VERIFIED_CAMPUSES.includes(campus)
   if (verified) {
-    const department = oneLine(body.department, LIMITS.field)
+    // GCEC has no departments: not required, and anything sent for it is ignored (the cell stays blank).
+    const department = needsDepartment(campus) ? oneLine(body.department, LIMITS.field) : ''
     const course = oneLine(body.course, LIMITS.field)
     const semester = oneLine(body.semester, LIMITS.semester)
-    if (!EMAIL_RE.test(studentEmail) || !department || !course || !semester) return { error: MSG.invalid }
+    if (!EMAIL_RE.test(studentEmail) || (needsDepartment(campus) && !department) || !course || !semester) return { error: MSG.invalid }
     Object.assign(row, { studentEmail, department, course, semester })
   }
   return { option, row, verified }
