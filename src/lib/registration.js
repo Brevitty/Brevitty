@@ -2,7 +2,7 @@
 // Each option page is ONE complete form that sends everything in a single request; the only thing kept in
 // sessionStorage is a convenience prefill of the applicant fields, so registering for a second option
 // doesn't mean retyping them. Nothing is stored server-side until a form is submitted.
-import { VERIFIED_CAMPUSES, OTHER_CAMPUS, EMAIL_RE, PHONE_RE, normalisePhone } from '../data/registrationOptions.js'
+import { VERIFIED_CAMPUSES, OTHER_CAMPUS, EMAIL_RE, PHONE_RE, normalisePhone, needsDepartment } from '../data/registrationOptions.js'
 
 const STORAGE_KEY = 'brevitty.applicant.v1'
 
@@ -20,10 +20,13 @@ export const EMPTY_APPLICANT = {
 
 /* ---- prefill (sessionStorage; cleared when the tab closes) ---- */
 
+// A campus without departments (GCEC) must never carry a department over from an earlier campus choice.
+export const withoutStaleDepartment = (a) => (needsDepartment(a.campus) ? a : { ...a, department: '' })
+
 export function loadApplicant() {
   try {
     const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || 'null')
-    return { ...EMPTY_APPLICANT, ...(saved && typeof saved === 'object' ? saved : {}) }
+    return withoutStaleDepartment({ ...EMPTY_APPLICANT, ...(saved && typeof saved === 'object' ? saved : {}) })
   } catch {
     return { ...EMPTY_APPLICANT } // private mode / blocked storage / corrupt value
   }
@@ -59,7 +62,7 @@ export function applicantErrors(a, { gated = false } = {}) {
   if (student && isStudentCampus(a.campus)) {
     // Required here; format only, the domain is never checked (the form shows a soft hint instead).
     if (!isEmail(a.studentEmail)) e.studentEmail = 'Enter your student email.'
-    if (!a.department.trim()) e.department = 'Enter your department.'
+    if (needsDepartment(a.campus) && !a.department.trim()) e.department = 'Enter your department.'
     if (!a.course.trim()) e.course = 'Enter your course.'
     if (!a.semester.trim()) e.semester = 'Enter your semester.'
   }
@@ -77,7 +80,7 @@ export function applicantPayload(a, { gated = false } = {}) {
     collegeStudent: student ? 'Yes' : 'No',
     campus: student ? a.campus : '',
     studentEmail: verified ? a.studentEmail.trim().toLowerCase() : '',
-    department: verified ? a.department.trim() : '',
+    department: verified && needsDepartment(a.campus) ? a.department.trim() : '',
     course: verified ? a.course.trim() : '',
     semester: verified ? a.semester.trim() : '',
   }

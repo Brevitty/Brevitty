@@ -7,6 +7,9 @@ export const OPTION_IDS = ['startup-junction', 'startup-arena', 'mentorship', 'g
 // Order is the dropdown order. These exact strings are also what lands in the sheet.
 export const VERIFIED_CAMPUSES = ['Poornima University', 'GCEC', 'PCE', 'PIET']
 export const OTHER_CAMPUS = 'Others'
+// GCEC has no departments: its Department field is hidden, never required and never stored.
+export const NO_DEPARTMENT_CAMPUSES = ['GCEC']
+export const needsDepartment = (campus) => VERIFIED_CAMPUSES.includes(campus) && !NO_DEPARTMENT_CAMPUSES.includes(campus)
 
 // Student emails from these domains look right; anything else only gets a soft, non-blocking note.
 export const KNOWN_STUDENT_DOMAINS = ['poornima.org', 'poornima.in', 'poornima.edu', 'gcecglobal.com']

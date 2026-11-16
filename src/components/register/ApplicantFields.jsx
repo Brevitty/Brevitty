@@ -4,7 +4,7 @@
 // so there is no Yes/No question and no "Others".
 import { fieldLabel, fieldInput, StudentEmailNote } from './RegisterShell.jsx'
 import { Field } from './FormParts.jsx'
-import { VERIFIED_CAMPUSES, OTHER_CAMPUS, LIMITS } from '../../data/registrationOptions.js'
+import { VERIFIED_CAMPUSES, OTHER_CAMPUS, LIMITS, needsDepartment } from '../../data/registrationOptions.js'
 import { isStudentCampus } from '../../lib/registration.js'
 
 // Yes / No pill pair (radio semantics). Also used by the eligibility gate.
@@ -42,7 +42,12 @@ export default function ApplicantFields({ value, onChange, errors = {}, gated = 
   // Leaving the four campuses (or answering No) drops the student-only answers so none are sent by accident.
   const changeStudent = (answer) => onChange({ collegeStudent: answer, ...(answer === 'No' ? CLEARED_STUDENT_FIELDS : {}) })
   const changeCampus = (campus) =>
-    onChange({ campus, ...(isStudentCampus(campus) ? {} : { studentEmail: '', department: '', course: '', semester: '' }) })
+    onChange({
+      campus,
+      ...(isStudentCampus(campus)
+        ? needsDepartment(campus) ? {} : { department: '' } // GCEC: drop any department typed for another campus
+        : { studentEmail: '', department: '', course: '', semester: '' }),
+    })
 
   return (
     <fieldset className="border-0 p-0">
@@ -92,10 +97,12 @@ export default function ApplicantFields({ value, onChange, errors = {}, gated = 
               onChange={(e) => onChange({ studentEmail: e.target.value })} aria-invalid={Boolean(errors.studentEmail)} aria-describedby="ap-studentEmail-hint ap-studentEmail-err" className={fieldInput} />
             <StudentEmailNote id="ap-studentEmail-hint" value={value.studentEmail} />
           </Field>
+          {needsDepartment(value.campus) && (
           <Field id="ap-department" label="Department" error={errors.department}>
             <input id="ap-department" value={value.department} maxLength={LIMITS.field} placeholder="e.g. Computer Science"
               onChange={(e) => onChange({ department: e.target.value })} aria-invalid={Boolean(errors.department)} aria-describedby="ap-department-err" className={fieldInput} />
           </Field>
+          )}
           <Field id="ap-course" label="Course" error={errors.course}>
             <input id="ap-course" value={value.course} maxLength={LIMITS.field} placeholder="e.g. B.Tech"
               onChange={(e) => onChange({ course: e.target.value })} aria-invalid={Boolean(errors.course)} aria-describedby="ap-course-err" className={fieldInput} />
