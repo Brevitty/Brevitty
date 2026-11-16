@@ -80,7 +80,10 @@ for (const tab of tabs) {
   // Date columns hold real date values (day serials): show them as yyyy-mm-dd. Formatting only; values are untouched.
   const dateCol = REG_DATE_COLUMNS[tab]
   if (dateCol) {
-    const index = want.indexOf(dateCol)
+    // Look the column up in the live header: older columns may still sit in the sheet, so REG_HEADERS positions can differ.
+    const live = ((await regRequest(`/values/${q(tab)}!A1:${colLetter(60)}1`)).values?.[0] || []).map((c) => String(c).trim())
+    const index = live.indexOf(dateCol)
+    if (index < 0) throw new Error(`"${tab}" has no "${dateCol}" column`)
     await regRequest(':batchUpdate', {
       method: 'POST',
       body: JSON.stringify({

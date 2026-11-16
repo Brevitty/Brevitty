@@ -13,7 +13,8 @@ export const REG_TABS = {
   grants: 'Grants',
 }
 
-// Columns on every tab. EMAIL_COL is the 0-based index used for the duplicate check.
+// Columns every tab is expected to have. The sheet may also hold older columns that are no longer
+// written (e.g. "Campus Official Email"): rows are always placed by header NAME, so extras are left blank.
 export const REG_COLUMNS = [
   'Timestamp',
   'Name',
@@ -25,10 +26,8 @@ export const REG_COLUMNS = [
   'Department',
   'Course',
   'Semester',
-  'Campus Official Email',
   'Option Registered',
 ]
-export const EMAIL_COL = REG_COLUMNS.indexOf('Email')
 
 // Startup Junction collects the On-Boarding Form answers too: appended to the RIGHT of REG_COLUMNS,
 // so rows written before these existed stay valid. Team members 1-5 = Team Size 2-6 (founder excluded).
@@ -91,10 +90,26 @@ export async function regRequest(path, init = {}) {
 }
 
 const q = (tab) => encodeURIComponent(`'${tab}'`)
+const HEADER_SPAN = 60 // columns read for the header row (the widest tab has 38)
+
+// Row 1 of a tab as trimmed strings.
+async function readHeader(tab) {
+  const data = await regRequest(`/values/${q(tab)}!A1:${colLetter(HEADER_SPAN)}1`)
+  return (data.values?.[0] || []).map((c) => String(c ?? '').trim())
+}
+// Header + the 0-based indexes of the named columns. Throws if the sheet lacks one (a setup problem, not user input).
+async function layout(tab, names) {
+  const header = await readHeader(tab)
+  const at = Object.fromEntries(names.map((n) => [n, header.indexOf(n)]))
+  const missing = names.filter((n) => at[n] < 0)
+  if (missing.length) throw new Error(`Registration tab "${tab}" is missing column(s): ${missing.join(', ')}`)
+  return { header, at }
+}
 
 // Lower-cased emails already registered in this tab.
 export async function registeredEmails(tab) {
-  const col = String.fromCharCode(65 + EMAIL_COL)
+  const { at } = await layout(tab, ['Email'])
+  const col = colLetter(at.Email + 1)
   const data = await regRequest(`/values/${q(tab)}!${col}2:${col}?valueRenderOption=UNFORMATTED_VALUE`)
   return new Set((data.values || []).map((r) => String(r[0] ?? '').trim().toLowerCase()).filter(Boolean))
 }
@@ -102,24 +117,30 @@ export async function registeredEmails(tab) {
 // Mentorship allows several bookings per student: only the same email + date + slot is a duplicate.
 // Returns a Set of "email|dateSerial|slot". Dates come back as day serials (UNFORMATTED_VALUE).
 export async function bookedMentorshipKeys() {
-  const cols = REG_HEADERS.Mentorship
-  const letter = (name) => String.fromCharCode(65 + cols.indexOf(name))
-  const emailAt = cols.indexOf('Email')
-  const dateAt = cols.indexOf('Preferred Date') - emailAt
-  const slotAt = cols.indexOf('Slot') - emailAt
-  const data = await regRequest(`/values/${q('Mentorship')}!${letter('Email')}2:${letter('Slot')}?valueRenderOption=UNFORMATTED_VALUE`)
+  const { at } = await layout('Mentorship', ['Email', 'Preferred Date', 'Slot'])
+  const from = Math.min(at.Email, at['Preferred Date'], at.Slot)
+  const to = Math.max(at.Email, at['Preferred Date'], at.Slot)
+  const data = await regRequest(`/values/${q('Mentorship')}!${colLetter(from + 1)}2:${colLetter(to + 1)}?valueRenderOption=UNFORMATTED_VALUE`)
+  const cell = (r, name) => r[at[name] - from]
   return new Set(
     (data.values || [])
-      .filter((r) => r[dateAt] !== undefined && r[dateAt] !== '')
-      .map((r) => `${String(r[0] ?? '').trim().toLowerCase()}|${Number(r[dateAt])}|${String(r[slotAt] ?? '').trim()}`)
+      .filter((r) => cell(r, 'Preferred Date') !== undefined && cell(r, 'Preferred Date') !== '')
+      .map((r) => `${String(cell(r, 'Email') ?? '').trim().toLowerCase()}|${Number(cell(r, 'Preferred Date'))}|${String(cell(r, 'Slot') ?? '').trim()}`)
   )
 }
 
+// Appends one row. `cells` follows REG_HEADERS[tab]; each value goes under the column with the same header
+// name, so extra legacy columns stay blank and a reordered sheet still lines up.
 // RAW: Sheets stores every value as literal text, so nothing a visitor types (=, +, @ ...) is
 // evaluated as a formula, and a phone number keeps its shape.
-export async function appendRegRow(tab, rowValues) {
+export async function appendRegRow(tab, cells) {
+  const expected = REG_HEADERS[tab]
+  if (cells.length !== expected.length) throw new Error('row/column mismatch')
+  const { header } = await layout(tab, expected)
+  const byName = Object.fromEntries(expected.map((name, i) => [name, cells[i]]))
+  const row = header.map((h) => (Object.hasOwn(byName, h) ? byName[h] : ''))
   await regRequest(`/values/${q(tab)}!A:A:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`, {
     method: 'POST',
-    body: JSON.stringify({ values: [rowValues] }),
+    body: JSON.stringify({ values: [row] }),
   })
 }

@@ -80,7 +80,7 @@ const fail = (res, status, error, extra = {}) => res.status(status).json({ ok: f
 function validateIdentity(body) {
   const caps = [
     [body.name, LIMITS.name], [body.email, LIMITS.email], [body.studentEmail, LIMITS.email],
-    [body.campusOfficialEmail, LIMITS.email], [body.department, LIMITS.field], [body.course, LIMITS.field],
+    [body.department, LIMITS.field], [body.course, LIMITS.field],
     [body.semester, LIMITS.semester], [body.campus, LIMITS.campusText], [body.phone, 20],
   ]
   if (caps.some(([v, max]) => tooLong(v, max))) return { error: MSG.invalid }
@@ -96,18 +96,17 @@ function validateIdentity(body) {
   if (collegeStudent && ![...VERIFIED_CAMPUSES, OTHER_CAMPUS].includes(campus)) return { error: MSG.invalid }
 
   const studentEmail = oneLine(body.studentEmail, LIMITS.email).toLowerCase()
-  const row = { name, email, phone, collegeStudent, campus, studentEmail: '', department: '', course: '', semester: '', campusOfficialEmail: '' }
+  const row = { name, email, phone, collegeStudent, campus, studentEmail: '', department: '', course: '', semester: '' }
 
-  // Verified = one of the four campuses AND a student email. Then every Step-2 field is mandatory.
+  // Verified = one of the four campuses AND a student email. Then the Step-2 fields are mandatory.
   // (The student email's domain is never checked: the form only shows a soft hint.)
   const verified = VERIFIED_CAMPUSES.includes(campus) && Boolean(studentEmail)
   if (verified) {
     const department = oneLine(body.department, LIMITS.field)
     const course = oneLine(body.course, LIMITS.field)
     const semester = oneLine(body.semester, LIMITS.semester)
-    const campusOfficialEmail = oneLine(body.campusOfficialEmail, LIMITS.email).toLowerCase()
-    if (!EMAIL_RE.test(studentEmail) || !department || !course || !semester || !EMAIL_RE.test(campusOfficialEmail)) return { error: MSG.invalid }
-    Object.assign(row, { studentEmail, department, course, semester, campusOfficialEmail })
+    if (!EMAIL_RE.test(studentEmail) || !department || !course || !semester) return { error: MSG.invalid }
+    Object.assign(row, { studentEmail, department, course, semester })
   } else if (studentEmail) {
     if (!EMAIL_RE.test(studentEmail)) return { error: MSG.invalid }
     row.studentEmail = studentEmail
@@ -252,13 +251,18 @@ export default async function handler(req, res) {
   const isUpload = body?.action === 'upload-url'
   const isDiscard = body?.action === 'discard'
   if (body && body.action !== undefined && !isUpload && !isDiscard) return fail(res, 400, MSG.invalid)
-  if (((isUpload || isDiscard) ? limitedUpload : limitedRegister)(clientIp(req))) return fail(res, 429, MSG.rate)
-  if (!body) return fail(res, 400, MSG.invalid)
+  if (!body) return limitedRegister(clientIp(req)) ? fail(res, 429, MSG.rate) : fail(res, 400, MSG.invalid) // unparsable bodies still count against the limit
 
   // Which upload-taking option (if any) this request is about, and the submission folder it may have filled.
   const fileOption = typeof body.option === 'string' && isFileOption(body.option) ? body.option : ''
   const detail = body[DETAIL_KEY[body.option]]
   const submissionId = [detail?.submissionId, body.submissionId].find(isSubmissionId) || ''
+
+  if (((isUpload || isDiscard) ? limitedUpload : limitedRegister)(clientIp(req))) {
+    // A throttled final save must not leave the files it already uploaded behind.
+    if (!isUpload && !isDiscard && fileOption && submissionId) await removeRegistrationFiles(fileOption, submissionId)
+    return fail(res, 429, MSG.rate)
+  }
 
   // action "discard": the browser gives up mid-upload; delete that submission's files (the uuid is unguessable).
   if (isDiscard) {
@@ -340,7 +344,7 @@ export default async function handler(req, res) {
           : []
     const cells = [
       istTimestamp(), row.name, row.phone, row.email, row.collegeStudent ? 'Yes' : 'No', row.campus, row.studentEmail,
-      row.department, row.course, row.semester, row.campusOfficialEmail, tab,
+      row.department, row.course, row.semester, tab,
       ...extra,
     ]
     if (cells.length !== REG_HEADERS[tab].length) throw new Error('row/column mismatch')
