@@ -16,6 +16,11 @@ import {
 } from '../../lib/registration.js'
 
 const ease = [0.22, 1, 0.36, 1]
+const DETAIL_PAGES = {
+  'startup-junction': '/register/startup-junction',
+  'startup-arena': '/register/startup-arena',
+  mentorship: '/register/mentorship',
+}
 
 function OptionCard({ id, index, state, onRegister }) {
   const reduce = useReducedMotion()
@@ -79,8 +84,8 @@ export default function RegisterOptionsPage({ variant }) {
   const setOne = (id, patch) => setStates((s) => ({ ...s, [id]: { ...s[id], ...patch } }))
 
   const register = async (id) => {
-    // Startup Junction needs startup details first, so it has its own form page; the rest are one click.
-    if (id === 'startup-junction') return navigate('/register/startup-junction')
+    // Everything except Grants needs details first, so it has its own guarded page; Grants is one click.
+    if (DETAIL_PAGES[id]) return navigate(DETAIL_PAGES[id])
     setOne(id, { status: 'loading', message: '' })
     const result = await submitRegistration(id, data, honeypot.current?.value || '')
     if (result.status === 'ok' || result.status === 'already') markDone(id)

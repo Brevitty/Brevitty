@@ -40,9 +40,27 @@ export const SJ_EXTRA_COLUMNS = [
   ...TEAM_COLUMNS,
 ]
 
+// Startup Arena: the startup's one-liner plus the deck and logo (storage paths, admin-viewable).
+export const ARENA_EXTRA_COLUMNS = ['Startup Name', 'One-liner', 'Pitch Deck', 'Logo']
+
+// Mentorship: built so an admin dashboard can be added later. "Preferred Date" holds a real date value
+// (see sheetDateSerial); Status / Assigned Mentor / Admin Notes are for the team to fill in.
+export const MENTORSHIP_EXTRA_COLUMNS = [
+  'Registration ID', 'Preferred Date', 'Day', 'Slot', 'Slot Time', 'Status', 'Assigned Mentor', 'Admin Notes',
+]
+export const MENTORSHIP_STATUS_DEFAULT = 'Pending'
+// The setup script formats these columns as dates.
+export const REG_DATE_COLUMNS = { Mentorship: 'Preferred Date' }
+
+const EXTRA_BY_OPTION = {
+  'startup-junction': SJ_EXTRA_COLUMNS,
+  'startup-arena': ARENA_EXTRA_COLUMNS,
+  mentorship: MENTORSHIP_EXTRA_COLUMNS,
+}
+
 // tab -> full header row
 export const REG_HEADERS = Object.fromEntries(
-  Object.entries(REG_TABS).map(([option, tab]) => [tab, option === 'startup-junction' ? [...REG_COLUMNS, ...SJ_EXTRA_COLUMNS] : REG_COLUMNS])
+  Object.entries(REG_TABS).map(([option, tab]) => [tab, [...REG_COLUMNS, ...(EXTRA_BY_OPTION[option] || [])]])
 )
 
 // 1-based column number -> A1 letters (1 -> A, 27 -> AA)
@@ -79,6 +97,22 @@ export async function registeredEmails(tab) {
   const col = String.fromCharCode(65 + EMAIL_COL)
   const data = await regRequest(`/values/${q(tab)}!${col}2:${col}?valueRenderOption=UNFORMATTED_VALUE`)
   return new Set((data.values || []).map((r) => String(r[0] ?? '').trim().toLowerCase()).filter(Boolean))
+}
+
+// Mentorship allows several bookings per student: only the same email + date + slot is a duplicate.
+// Returns a Set of "email|dateSerial|slot". Dates come back as day serials (UNFORMATTED_VALUE).
+export async function bookedMentorshipKeys() {
+  const cols = REG_HEADERS.Mentorship
+  const letter = (name) => String.fromCharCode(65 + cols.indexOf(name))
+  const emailAt = cols.indexOf('Email')
+  const dateAt = cols.indexOf('Preferred Date') - emailAt
+  const slotAt = cols.indexOf('Slot') - emailAt
+  const data = await regRequest(`/values/${q('Mentorship')}!${letter('Email')}2:${letter('Slot')}?valueRenderOption=UNFORMATTED_VALUE`)
+  return new Set(
+    (data.values || [])
+      .filter((r) => r[dateAt] !== undefined && r[dateAt] !== '')
+      .map((r) => `${String(r[0] ?? '').trim().toLowerCase()}|${Number(r[dateAt])}|${String(r[slotAt] ?? '').trim()}`)
+  )
 }
 
 // RAW: Sheets stores every value as literal text, so nothing a visitor types (=, +, @ ...) is

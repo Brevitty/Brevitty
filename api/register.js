@@ -1,9 +1,18 @@
+import crypto from 'crypto'
 import { allowMethod, readJson, clientIp, makeRateLimiter } from './_lib/http.js'
-import { REG_TABS, REG_HEADERS, registeredEmails, appendRegRow } from './_lib/registrationSheet.js'
+import {
+  REG_TABS,
+  REG_HEADERS,
+  MENTORSHIP_STATUS_DEFAULT,
+  registeredEmails,
+  bookedMentorshipKeys,
+  appendRegRow,
+} from './_lib/registrationSheet.js'
 import {
   createRegistrationUpload,
   verifyRegistrationFiles,
   removeRegistrationFiles,
+  isFileOption,
   isSubmissionId,
 } from './_lib/registrationFiles.js'
 import {
@@ -22,26 +31,36 @@ import {
   NOT_REGISTERED,
   REGISTERED_WITH,
   MAX_TEAM_SIZE,
-  FILE_FIELDS,
   FILE_KINDS,
+  OPTION_FILE_FIELDS,
+  findSlot,
+  isMentorshipDate,
+  weekdayName,
+  sheetDateSerial,
 } from '../src/data/registrationOptions.js'
 
-// Public endpoint (no login). One function, two actions (the project is capped at 12 functions):
-//   (default)            append one row per (email, option) to the registration sheet
-//   action: "upload-url" Startup Junction only: sign a direct-to-storage upload URL for one file
+// Public endpoint (no login). One function (the project is capped at 12), several actions:
+//   (default)            append one row to the option's tab
+//   action: "upload-url" Startup Junction / Startup Arena: sign a direct-to-storage upload URL for one file
 //   action: "discard"    delete a submission's uploaded files after a failed attempt
 // Abuse controls: honeypot, per-IP rate limits (in-memory, reset on cold start like login.js),
 // hard length caps, server-side re-validation of everything the forms check.
 const limitedRegister = makeRateLimiter(8, 60_000)
-const limitedUpload = makeRateLimiter(15, 60_000) // 3 files + retries per registration
+const limitedUpload = makeRateLimiter(15, 60_000) // up to 3 files + retries per registration
 
-const HONEYPOT_FIELD = 'website' // hidden input on the options page; humans never fill it
+const HONEYPOT_FIELD = 'website' // hidden input on the forms; humans never fill it
 const SJ = 'startup-junction'
+const ARENA = 'startup-arena'
+const MENTORSHIP = 'mentorship'
+// Where each option's extra answers live in the request body.
+const DETAIL_KEY = { [SJ]: 'sj', [ARENA]: 'arena', [MENTORSHIP]: 'mentorship' }
 
 const MSG = {
   rate: 'Too many attempts. Give it a minute and try again.',
   invalid: 'Please check your details and try again.',
   already: "You're already registered for this one. We'll be in touch!",
+  slotTaken: "You've already booked this date and slot. Pick another slot or date.",
+  badDate: "That date isn't available. Please pick another one.",
   unavailable: 'Registration is temporarily unavailable. Please try again in a few minutes.',
 }
 
@@ -99,6 +118,19 @@ function validateIdentity(body) {
   return { option, row, verified }
 }
 
+/* ---------------- shared: the files a submission claims to have uploaded ---------------- */
+
+// -> { files } where files maps field -> extension, or { error }.
+function claimedFiles(option, raw) {
+  const files = {}
+  for (const field of OPTION_FILE_FIELDS[option]) {
+    const ext = oneLine(raw?.[field], 5).toLowerCase()
+    if (!Object.hasOwn(FILE_KINDS[field].types, ext)) return { error: MSG.invalid }
+    files[field] = ext
+  }
+  return { files }
+}
+
 /* ---------------- Startup Junction details (the On-Boarding Form) ---------------- */
 
 // Returns { error } or { sj }. `sj.files` maps field -> extension for the full stages.
@@ -125,8 +157,8 @@ function validateStartupJunction(raw) {
   const registrationNumber = oneLine(s.registrationNumber, LIMITS.registrationNumber)
   const founderRole = oneLine(s.founderRole, LIMITS.role)
   const teamSize = Number(s.teamSize)
-  const longEnough = [[s.description, LIMITS.description], [s.website, LIMITS.website], [s.incubatedWhere, LIMITS.where], [s.registrationNumber, LIMITS.registrationNumber], [s.founderRole, LIMITS.role]]
-  if (longEnough.some(([v, max]) => tooLong(v, max))) return { error: MSG.invalid }
+  const caps = [[s.description, LIMITS.description], [s.website, LIMITS.website], [s.incubatedWhere, LIMITS.where], [s.registrationNumber, LIMITS.registrationNumber], [s.founderRole, LIMITS.role]]
+  if (caps.some(([v, max]) => tooLong(v, max))) return { error: MSG.invalid }
 
   if (!startupName || !oneLiner || !INDUSTRIES.includes(industry) || !description || !EMAIL_RE.test(startupEmail)) return { error: MSG.invalid }
   if (website) {
@@ -148,20 +180,14 @@ function validateStartupJunction(raw) {
     members.push({ name, mobile })
   }
 
-  // File extensions the browser says it uploaded; the objects themselves are verified before the row is written.
-  const files = {}
-  for (const field of FILE_FIELDS) {
-    const ext = oneLine(s.files?.[field], 5).toLowerCase()
-    if (!Object.hasOwn(FILE_KINDS[field].types, ext)) return { error: MSG.invalid }
-    files[field] = ext
-  }
-
+  const claimed = claimedFiles(SJ, s.files)
+  if (claimed.error) return claimed
   return {
     sj: {
       stage, startupName, oneLiner, industry, description, startupEmail, website, incubatedElsewhere,
       incubatedWhere: incubatedElsewhere === 'Yes' ? incubatedWhere : '',
       registeredWith, registrationNumber: registeredWith === NOT_REGISTERED ? '' : registrationNumber,
-      founderRole, teamSize, team: members, files, full: true,
+      founderRole, teamSize, team: members, files: claimed.files, full: true,
     },
   }
 }
@@ -177,6 +203,45 @@ function startupJunctionCells(sj, paths) {
   ]
 }
 
+/* ---------------- Startup Arena: name, one-liner, deck, logo ---------------- */
+
+function validateArena(raw) {
+  const a = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null
+  if (!a) return { error: MSG.invalid }
+  if (tooLong(a.startupName, LIMITS.startupName) || tooLong(a.oneLiner, LIMITS.oneLiner)) return { error: MSG.invalid }
+  const startupName = oneLine(a.startupName, LIMITS.startupName)
+  const oneLiner = oneLine(a.oneLiner, LIMITS.oneLiner)
+  // The student must confirm the deck follows the 8-section format.
+  if (!startupName || !oneLiner || a.deckConfirmed !== true) return { error: MSG.invalid }
+  const claimed = claimedFiles(ARENA, a.files)
+  if (claimed.error) return claimed
+  return { arena: { startupName, oneLiner, files: claimed.files } }
+}
+
+/* ---------------- Mentorship: date + slot (IST) ---------------- */
+
+// Returns { error } or { booking: { date, slot } }.
+function validateMentorship(raw) {
+  const m = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null
+  if (!m) return { error: MSG.invalid }
+  const slot = findSlot(oneLine(m.slot, 20))
+  if (!slot) return { error: MSG.invalid }
+  const date = oneLine(m.date, 10)
+  // Upcoming (tomorrow or later), inside the 28-day window, and never a Sunday: all computed in IST.
+  if (!isMentorshipDate(date)) return { error: MSG.badDate }
+  return { booking: { date, slot } }
+}
+
+const ID_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no 0/O/1/I
+const newMentorshipId = (date) =>
+  `MEN-${date.replaceAll('-', '')}-${Array.from(crypto.randomBytes(4), (b) => ID_ALPHABET[b % ID_ALPHABET.length]).join('')}`
+
+// Must follow REG_HEADERS.Mentorship (base columns, then the extras). The date goes in as a day
+// serial number: the sheet column is date-formatted, so it is a real date, not text.
+function mentorshipCells({ date, slot }) {
+  return [newMentorshipId(date), sheetDateSerial(date), weekdayName(date), slot.id, slot.time, MENTORSHIP_STATUS_DEFAULT, '', '']
+}
+
 /* ---------------- handler ---------------- */
 
 export default async function handler(req, res) {
@@ -190,19 +255,23 @@ export default async function handler(req, res) {
   if (((isUpload || isDiscard) ? limitedUpload : limitedRegister)(clientIp(req))) return fail(res, 429, MSG.rate)
   if (!body) return fail(res, 400, MSG.invalid)
 
+  // Which upload-taking option (if any) this request is about, and the submission folder it may have filled.
+  const fileOption = typeof body.option === 'string' && isFileOption(body.option) ? body.option : ''
+  const detail = body[DETAIL_KEY[body.option]]
+  const submissionId = [detail?.submissionId, body.submissionId].find(isSubmissionId) || ''
+
   // action "discard": the browser gives up mid-upload; delete that submission's files (the uuid is unguessable).
   if (isDiscard) {
-    await removeRegistrationFiles(isSubmissionId(body.submissionId) ? body.submissionId : '')
+    await removeRegistrationFiles(fileOption, submissionId)
     return res.status(200).json({ ok: true })
   }
 
   // Honeypot: pretend it worked so a bot learns nothing, write nothing.
   if (typeof body[HONEYPOT_FIELD] === 'string' && body[HONEYPOT_FIELD].trim()) return res.status(200).json({ ok: true })
 
-  // From here on, a failed Startup Junction submission removes whatever it uploaded.
-  const submissionId = isSubmissionId(body.sj?.submissionId) ? body.sj.submissionId : isSubmissionId(body.submissionId) ? body.submissionId : ''
+  // From here on, a failed submission removes whatever it uploaded.
   const bail = async (status, error, extra) => {
-    if (submissionId) await removeRegistrationFiles(submissionId)
+    if (fileOption && submissionId) await removeRegistrationFiles(fileOption, submissionId)
     return fail(res, status, error, extra)
   }
 
@@ -214,11 +283,12 @@ export default async function handler(req, res) {
   try {
     /* ---- action: upload-url ---- */
     if (isUpload) {
-      // Only verified students going through the full Startup Junction form upload anything.
-      const stage = oneLine(body.sj?.stage, 40)
-      if (option !== SJ || !isFullStage(stage)) return fail(res, 400, MSG.invalid)
+      if (!isFileOption(option)) return fail(res, 400, MSG.invalid)
+      // Junction uploads only for the full stages; Arena always has a deck and a logo.
+      if (option === SJ && !isFullStage(oneLine(body.sj?.stage, 40))) return fail(res, 400, MSG.invalid)
       if ((await registeredEmails(tab)).has(row.email)) return fail(res, 409, MSG.already, { code: 'already_registered' })
       const data = await createRegistrationUpload({
+        option,
         submissionId: body.submissionId,
         field: oneLine(body.field, 20),
         filename: body.filename,
@@ -230,27 +300,52 @@ export default async function handler(req, res) {
 
     /* ---- default: register ---- */
     let sj = null
+    let arena = null
+    let booking = null
     if (option === SJ) {
       const r = validateStartupJunction(body.sj)
       if (r.error) return bail(400, r.error)
       sj = r.sj
       if (sj.full && !submissionId) return bail(400, MSG.invalid)
+    } else if (option === ARENA) {
+      const r = validateArena(body.arena)
+      if (r.error) return bail(400, r.error)
+      arena = r.arena
+      if (!submissionId) return bail(400, MSG.invalid)
+    } else if (option === MENTORSHIP) {
+      const r = validateMentorship(body.mentorship)
+      if (r.error) return bail(400, r.error)
+      booking = r.booking
     }
 
-    if ((await registeredEmails(tab)).has(row.email)) return bail(409, MSG.already, { code: 'already_registered' })
+    // One registration per email per tab, except Mentorship: only the same email + date + slot is a duplicate.
+    if (booking) {
+      const key = `${row.email}|${sheetDateSerial(booking.date)}|${booking.slot.id}`
+      if ((await bookedMentorshipKeys()).has(key)) return bail(409, MSG.slotTaken, { code: 'already_registered' })
+    } else if ((await registeredEmails(tab)).has(row.email)) {
+      return bail(409, MSG.already, { code: 'already_registered' })
+    }
 
     // Every required upload must exist (right type and size) before anything is written.
     let paths = null
-    if (sj?.full) paths = await verifyRegistrationFiles(submissionId, sj.files)
+    if (sj?.full) paths = await verifyRegistrationFiles(SJ, submissionId, sj.files)
+    if (arena) paths = await verifyRegistrationFiles(ARENA, submissionId, arena.files)
 
+    const extra = sj
+      ? startupJunctionCells(sj, paths)
+      : arena
+        ? [arena.startupName, arena.oneLiner, paths.pitchDeck, paths.logo]
+        : booking
+          ? mentorshipCells(booking)
+          : []
     const cells = [
       istTimestamp(), row.name, row.phone, row.email, row.collegeStudent ? 'Yes' : 'No', row.campus, row.studentEmail,
       row.department, row.course, row.semester, row.campusOfficialEmail, tab,
-      ...(sj ? startupJunctionCells(sj, paths) : []),
+      ...extra,
     ]
-    if (cells.length > REG_HEADERS[tab].length || (!sj && cells.length !== REG_HEADERS[tab].length)) throw new Error('row/column mismatch')
+    if (cells.length !== REG_HEADERS[tab].length) throw new Error('row/column mismatch')
     await appendRegRow(tab, cells)
-    if (sj && !sj.full && submissionId) await removeRegistrationFiles(submissionId) // minimal stages never keep files
+    if (sj && !sj.full && submissionId) await removeRegistrationFiles(SJ, submissionId) // minimal stages never keep files
     return res.status(200).json({ ok: true })
   } catch (err) {
     if (err?.status === 400) return bail(400, err.message) // file problems: safe, user-facing text from registrationFiles.js

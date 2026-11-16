@@ -24,6 +24,8 @@ const RegisterPage = lazy(() => import('./pages/register/RegisterPage.jsx'))
 const RegisterDetailsPage = lazy(() => import('./pages/register/RegisterDetailsPage.jsx'))
 const RegisterOptionsPage = lazy(() => import('./pages/register/RegisterOptionsPage.jsx'))
 const RegisterStartupJunctionPage = lazy(() => import('./pages/register/RegisterStartupJunctionPage.jsx'))
+const RegisterStartupArenaPage = lazy(() => import('./pages/register/RegisterStartupArenaPage.jsx'))
+const RegisterMentorshipPage = lazy(() => import('./pages/register/RegisterMentorshipPage.jsx'))
 const HubGate = lazy(() => import('./pages/hub/HubGate.jsx'))
 const HubIndexPage = lazy(() => import('./pages/hub/HubIndexPage.jsx'))
 const HubChoosePage = lazy(() => import('./pages/hub/HubChoosePage.jsx'))
@@ -70,6 +72,8 @@ export default function App() {
           <Route path="/register/details" element={<RegisterDetailsPage />} />
           <Route path="/register/student" element={<RegisterOptionsPage variant="student" />} />
           <Route path="/register/startup-junction" element={<RegisterStartupJunctionPage />} />
+          <Route path="/register/startup-arena" element={<RegisterStartupArenaPage />} />
+          <Route path="/register/mentorship" element={<RegisterMentorshipPage />} />
           <Route path="/register/open" element={<RegisterOptionsPage variant="open" />} />
           {/* /hub/* : HubGate sends signed-out visitors to /signin?next=...; workspaces also check access server-side */}
           <Route path="/hub" element={<HubGate />}>

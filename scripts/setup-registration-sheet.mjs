@@ -4,7 +4,7 @@
 // header (matched by name); it never rewrites, reorders or deletes anything, and never touches data rows.
 //   node scripts/setup-registration-sheet.mjs
 import { loadEnv } from 'vite'
-import { regRequest, REG_TABS, REG_HEADERS, colLetter } from '../api/_lib/registrationSheet.js'
+import { regRequest, REG_TABS, REG_HEADERS, REG_DATE_COLUMNS, colLetter } from '../api/_lib/registrationSheet.js'
 
 for (const [k, v] of Object.entries(loadEnv('development', process.cwd(), ''))) {
   if (process.env[k] === undefined) process.env[k] = v
@@ -75,6 +75,27 @@ for (const tab of tabs) {
     console.log(`"${tab}": ${lastUsed ? `added ${toAppend.length} column(s) from ${start}` : 'header written'}`)
   } else {
     console.log(`"${tab}": header already complete (${lastWanted})`)
+  }
+
+  // Date columns hold real date values (day serials): show them as yyyy-mm-dd. Formatting only; values are untouched.
+  const dateCol = REG_DATE_COLUMNS[tab]
+  if (dateCol) {
+    const index = want.indexOf(dateCol)
+    await regRequest(':batchUpdate', {
+      method: 'POST',
+      body: JSON.stringify({
+        requests: [
+          {
+            repeatCell: {
+              range: { sheetId, startRowIndex: 1, startColumnIndex: index, endColumnIndex: index + 1 },
+              cell: { userEnteredFormat: { numberFormat: { type: 'DATE', pattern: 'yyyy-mm-dd' } } },
+              fields: 'userEnteredFormat.numberFormat',
+            },
+          },
+        ],
+      }),
+    })
+    console.log(`"${tab}": "${dateCol}" formatted as a date`)
   }
 
   // Bold + frozen header (idempotent; formatting only).

@@ -33,7 +33,8 @@ export const REGISTRATION_OPTIONS = {
   mentorship: {
     title: 'One-on-One Mentorship',
     description: 'Book a one-on-one session with an experienced mentor for focused guidance on your idea or startup.',
-    success: "Request received. We'll match you with a mentor and email the next steps.",
+    // Fallback only: the page shows formatMentorshipSuccess(date, slot) with the chosen date and slot.
+    success: "Request received. We'll email the next steps.",
   },
   grants: {
     title: 'Competitions and Grants',
@@ -102,6 +103,80 @@ export function fileProblem(field, { name, size }) {
   if (size !== undefined && !(size > 0)) return `${rule.label}: that file is empty.`
   if (size > rule.maxBytes) return `${rule.label}: file is too large (max ${rule.maxBytes / MB} MB).`
   return null
+}
+
+/* ---------- Startup Arena (pitch deck + logo) ---------- */
+
+// Options whose registration uploads files, and which file fields each one takes.
+export const OPTION_FILE_FIELDS = {
+  'startup-junction': ['pitchDeck', 'logo', 'founderPhoto'],
+  'startup-arena': ['pitchDeck', 'logo'],
+}
+export const FILE_OPTIONS = Object.keys(OPTION_FILE_FIELDS)
+
+export const DECK_CONFIRM_LABEL = 'My pitch deck covers these 8 sections.'
+export const DECK_FORMAT_NOTE = 'Your deck must cover these 8 sections, in this order. PDF is recommended.'
+export const DECK_SECTIONS = [
+  { title: 'Problem and solution', text: 'What problem do you solve, for whom, and how does your product / service address it?' },
+  { title: 'Product / service', text: 'Describe key products / services. What is live today versus under development or planned?' },
+  { title: 'Market and customers', text: 'Who are your target customers? Which markets / geographies do you serve?' },
+  { title: 'Traction', text: 'How many customers do you have? Distinguish paying, pilot, signed-not-live and prospect customers.' },
+  { title: 'Business model', text: 'How do you make money? Describe pricing, revenue streams, contract structure and recurring versus transactional revenue.' },
+  { title: 'Competitive advantage', text: 'Who are the key competitors / alternatives? What differentiates you and why do customers choose you?' },
+  { title: 'Team', text: 'Share founder and leadership profiles, responsibilities and current employee / contractor count.' },
+  { title: 'Risks and dependencies', text: 'What are the key business risks, execution dependencies or constraints that could affect the growth plan?' },
+]
+
+/* ---------- One-on-One Mentorship (date + slot, all IST) ---------- */
+
+export const MENTORSHIP_WINDOW_DAYS = 28 // starting tomorrow
+export const MENTORSHIP_SLOTS = [
+  { id: 'Slot 1', label: 'Slot 1: 10:00 AM to 1:00 PM', short: 'Slot 1 (10 AM to 1 PM)', time: '10:00-13:00' },
+  { id: 'Slot 2', label: 'Slot 2: 2:00 PM to 5:00 PM', short: 'Slot 2 (2 PM to 5 PM)', time: '14:00-17:00' },
+]
+export const findSlot = (id) => MENTORSHIP_SLOTS.find((x) => x.id === id) || null
+
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const DAY_MS = 86_400_000
+const EXCEL_EPOCH_OFFSET_DAYS = 25569 // days from 1899-12-30 (Sheets/Excel day 0) to 1970-01-01
+
+// "yyyy-mm-dd" -> UTC midnight ms, or null if it isn't a real calendar date.
+function parseISODate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso))
+  if (!m) return null
+  const [y, mo, d] = m.slice(1).map(Number)
+  const t = Date.UTC(y, mo - 1, d)
+  const back = new Date(t)
+  return back.getUTCFullYear() === y && back.getUTCMonth() === mo - 1 && back.getUTCDate() === d ? t : null
+}
+// Today's calendar date in India. The weekday of a calendar date is timezone-independent, so everything
+// else works on plain yyyy-mm-dd strings and UTC math.
+export const istTodayISO = (now = new Date()) => now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' })
+export const addDaysISO = (iso, n) => new Date(parseISODate(iso) + n * DAY_MS).toISOString().slice(0, 10)
+export const weekdayName = (iso) => DAY_NAMES[new Date(parseISODate(iso)).getUTCDay()]
+// Whole days since 1899-12-30: written as a number so Sheets stores a real date (column is formatted as a date).
+export const sheetDateSerial = (iso) => parseISODate(iso) / DAY_MS + EXCEL_EPOCH_OFFSET_DAYS
+
+// Selectable dates: the next 28 days starting TOMORROW, Sundays removed.
+export function mentorshipDates(now = new Date()) {
+  const today = istTodayISO(now)
+  const out = []
+  for (let i = 1; i <= MENTORSHIP_WINDOW_DAYS; i++) {
+    const iso = addDaysISO(today, i)
+    const day = weekdayName(iso)
+    if (day === 'Sunday') continue
+    const [, mo, d] = iso.split('-').map(Number)
+    out.push({ iso, day, dayShort: day.slice(0, 3), dayOfMonth: d, monthShort: MONTH_SHORT[mo - 1] })
+  }
+  return out
+}
+export const isMentorshipDate = (iso, now = new Date()) => parseISODate(iso) !== null && mentorshipDates(now).some((d) => d.iso === iso)
+
+// "Request received for Wed 25 Nov, Slot 1 (10 AM to 1 PM). We'll email the next steps."
+export function formatMentorshipSuccess(iso, slotId) {
+  const [, mo, d] = iso.split('-').map(Number)
+  return `Request received for ${weekdayName(iso).slice(0, 3)} ${d} ${MONTH_SHORT[mo - 1]}, ${findSlot(slotId).short}. We'll email the next steps.`
 }
 
 // Field limits, shared by the forms (maxLength) and the server (hard caps).

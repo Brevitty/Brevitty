@@ -105,16 +105,17 @@ async function putFile(url, file, contentType) {
   }
 }
 
-// Startup Junction. `sj` holds the form answers; `files` maps field -> File (full stages only).
+// Options that upload files (Startup Junction, Startup Arena). `details` is that option's answers,
+// sent under `detailKey` ('sj' | 'arena'); `files` maps field -> File.
 // Order matters: the server signs each upload, we PUT it, and ONLY THEN is the registration posted, which
 // itself re-verifies every object before writing the row. onStep(label) reports progress for the UI.
-export async function submitStartupJunction(data, sj, files, honeypot = '', onStep = () => {}) {
-  const base = { ...data, option: 'startup-junction', website: honeypot }
+async function submitWithFiles(option, detailKey, details, files, data, honeypot, onStep) {
+  const base = { ...data, option, website: honeypot }
   let submissionId = ''
   const uploaded = {}
   // Any failure before the final save deletes what was already uploaded, so nothing is left behind.
   const abort = async (result) => {
-    if (submissionId) await post({ action: 'discard', submissionId })
+    if (submissionId) await post({ action: 'discard', option, submissionId })
     return result
   }
   for (const [field, file] of Object.entries(files)) {
@@ -122,7 +123,7 @@ export async function submitStartupJunction(data, sj, files, honeypot = '', onSt
     const signed = await post({
       ...base,
       action: 'upload-url',
-      sj: { stage: sj.stage },
+      [detailKey]: { stage: details.stage },
       submissionId,
       field,
       filename: file.name,
@@ -136,5 +137,15 @@ export async function submitStartupJunction(data, sj, files, honeypot = '', onSt
     uploaded[field] = file.name.split('.').pop().toLowerCase()
   }
   onStep('Saving your registration…')
-  return post({ ...base, sj: { ...sj, submissionId, files: uploaded } })
+  return post({ ...base, [detailKey]: { ...details, submissionId, files: uploaded } })
 }
+
+export const submitStartupJunction = (data, sj, files, honeypot = '', onStep = () => {}) =>
+  submitWithFiles('startup-junction', 'sj', sj, files, data, honeypot, onStep)
+
+export const submitStartupArena = (data, arena, files, honeypot = '', onStep = () => {}) =>
+  submitWithFiles('startup-arena', 'arena', arena, files, data, honeypot, onStep)
+
+// One-on-One Mentorship: a date (yyyy-mm-dd, IST) and a slot id. Several bookings per student are fine.
+export const submitMentorship = (data, booking, honeypot = '') =>
+  post({ ...data, option: 'mentorship', website: honeypot, mentorship: booking })

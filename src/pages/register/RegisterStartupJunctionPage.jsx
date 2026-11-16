@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
-import RegisterShell, { fieldLabel, fieldInput, primaryButton, FieldError } from '../../components/register/RegisterShell.jsx'
+import RegisterShell, { fieldInput, primaryButton } from '../../components/register/RegisterShell.jsx'
+import { Field, FileField } from '../../components/register/FormParts.jsx'
 import {
   REGISTRATION_OPTIONS,
   STAGES,
@@ -32,7 +33,6 @@ const INITIAL = {
   stage: '', startupName: '', oneLiner: '', industry: '', description: '', startupEmail: '', website: '',
   incubatedElsewhere: '', incubatedWhere: '', registeredWith: '', registrationNumber: '', founderRole: '', teamSize: '1',
 }
-const formatMb = (bytes) => `${(bytes / 1024 / 1024).toFixed(bytes < 1024 * 1024 ? 2 : 1)} MB`
 
 function validate(f, files, team) {
   const e = {}
@@ -63,51 +63,6 @@ function validate(f, files, team) {
     if (!isPhone(m.mobile)) e[`team${i}mobile`] = 'Enter a 10-digit mobile number.'
   })
   return e
-}
-
-function Field({ id, label, error, hint, children }) {
-  return (
-    <div>
-      <label htmlFor={id} className={`${fieldLabel} mt-2`}>{label}</label>
-      {children}
-      {hint && <p className="mt-1 text-xs text-black/50">{hint}</p>}
-      <FieldError id={`${id}-err`}>{error}</FieldError>
-    </div>
-  )
-}
-
-function FileField({ field, file, error, onPick }) {
-  const rule = FILE_KINDS[field]
-  const id = `sj-${field}`
-  return (
-    <Field id={id} label={rule.label} error={error} hint={rule.hint}>
-      <div className="mt-1.5 flex min-h-[48px] items-center gap-3 rounded-xl border border-black/20 bg-white px-3 py-2">
-        <label
-          htmlFor={id}
-          className="cursor-pointer rounded-full bg-orange/10 px-4 py-2 text-sm font-semibold text-[#c2410c] focus-within:ring-4 focus-within:ring-orange/30 hover:bg-orange/20"
-        >
-          {file ? 'Replace' : 'Choose file'}
-        </label>
-        <input
-          id={id}
-          type="file"
-          className="sr-only"
-          accept={Object.keys(rule.types).map((x) => `.${x}`).join(',')}
-          onChange={(e) => onPick(field, e.target.files?.[0] || null)}
-          aria-invalid={Boolean(error)}
-          aria-describedby={`${id}-err`}
-        />
-        <span className="min-w-0 flex-1 truncate text-sm text-black/60">
-          {file ? `${file.name} · ${formatMb(file.size)}` : 'No file chosen'}
-        </span>
-        {file && (
-          <button type="button" onClick={() => onPick(field, null)} className="text-xs font-semibold text-black/50 hover:text-ink" aria-label={`Remove ${rule.label}`}>
-            Remove
-          </button>
-        )}
-      </div>
-    </Field>
-  )
 }
 
 export default function RegisterStartupJunctionPage() {
