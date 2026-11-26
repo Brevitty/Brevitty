@@ -34,16 +34,17 @@ export function StudentEmailNote({ id, value }) {
 }
 
 // Page frame: soft peach gradient, centred, clear of the fixed navbar.
-export default function RegisterShell({ step, title, intro, wide = false, children }) {
+// `widthClass` overrides the content width; `clip` swaps overflow-hidden for overflow-clip so position:sticky works inside.
+export default function RegisterShell({ step, title, intro, wide = false, widthClass, clip = false, children }) {
   const reduce = useReducedMotion()
   return (
-    <section className="relative flex min-h-screen items-start justify-center overflow-hidden bg-white px-6 pb-20 pt-28 sm:items-center">
+    <section className={`relative flex min-h-screen items-start justify-center ${clip ? 'overflow-clip' : 'overflow-hidden'} bg-white px-6 pb-20 pt-28 sm:items-center`}>
       <HeroBackground />
       <motion.div
         initial={reduce ? false : { opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, ease }}
-        className={`relative z-10 w-full ${wide ? 'max-w-4xl' : 'max-w-md'}`}
+        className={`relative z-10 w-full ${widthClass || (wide ? 'max-w-4xl' : 'max-w-md')}`}
       >
         <div className={wide ? 'mx-auto mb-8 max-w-xl text-center' : 'mb-6'}>
           {step && (

@@ -25,6 +25,7 @@ const RegisterGrantsPage = lazy(() => import('./pages/register/RegisterGrantsPag
 const RegisterStartupJunctionPage = lazy(() => import('./pages/register/RegisterStartupJunctionPage.jsx'))
 const RegisterStartupArenaPage = lazy(() => import('./pages/register/RegisterStartupArenaPage.jsx'))
 const RegisterMentorshipPage = lazy(() => import('./pages/register/RegisterMentorshipPage.jsx'))
+const TechBipRegistrationPage = lazy(() => import('./pages/register/TechBipRegistrationPage.jsx'))
 const HubGate = lazy(() => import('./pages/hub/HubGate.jsx'))
 const HubIndexPage = lazy(() => import('./pages/hub/HubIndexPage.jsx'))
 const HubChoosePage = lazy(() => import('./pages/hub/HubChoosePage.jsx'))
@@ -76,6 +77,9 @@ export default function App() {
           <Route path="/register/startup-arena" element={<RegisterStartupArenaPage />} />
           <Route path="/register/mentorship" element={<RegisterMentorshipPage />} />
           <Route path="/register/grants" element={<RegisterGrantsPage />} />
+          {/* Tech-BIP 2027 (EDII) registrations collected by Brevitty; the alternate spelling redirects */}
+          <Route path="/tech-bip-registration" element={<TechBipRegistrationPage />} />
+          <Route path="/tech-bip-registeration" element={<Navigate to="/tech-bip-registration" replace />} />
           {/* /hub/* : HubGate sends signed-out visitors to /signin?next=...; workspaces also check access server-side */}
           <Route path="/hub" element={<HubGate />}>
             <Route index element={<HubIndexPage />} />

@@ -39,6 +39,8 @@ import {
   weekdayName,
   sheetDateSerial,
 } from '../src/data/registrationOptions.js'
+import { TECH_BIP_FORM } from '../src/data/techBip.js'
+import { handleTechBip } from './_lib/techBip.js'
 
 // Public endpoint (no login). One function (the project is capped at 12), several actions:
 //   (default)            append one row to the option's tab
@@ -246,6 +248,8 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
 
   const body = readJson(req)
+  // Tech-BIP 2027 has its own validation, storage and sheet (api/_lib/techBip.js); the checks below don't apply to it.
+  if (body?.form === TECH_BIP_FORM) return handleTechBip(req, res, body)
   const isUpload = body?.action === 'upload-url'
   const isDiscard = body?.action === 'discard'
   if (body && body.action !== undefined && !isUpload && !isDiscard) return fail(res, 400, MSG.invalid)
